@@ -1,3 +1,4 @@
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
@@ -12,6 +13,25 @@ import { Logo } from '@/components/Logo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/Button';
 import { MiniDashboard } from '@/components/MiniDashboard';
+
+// 3D hero scene is heavy (three.js) — load it lazily so it never blocks first paint.
+const HeroScene = lazy(() => import('@/components/HeroScene'));
+
+// The 3D scene is laptop/desktop only. This gates the mount (not just visibility),
+// so the three.js chunk is never downloaded on phones or tablets.
+function useIsLargeScreen() {
+  const query = '(min-width: 1024px)';
+  const [isLarge, setIsLarge] = useState(
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setIsLarge(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return isLarge;
+}
 
 const features = [
   {
@@ -43,6 +63,7 @@ const features = [
 
 export default function Landing() {
   const navigate = useNavigate();
+  const showScene = useIsLargeScreen();
 
   return (
     <div className="min-h-full flex flex-col bg-bg">
@@ -63,26 +84,45 @@ export default function Landing() {
       </header>
 
       {/* Hero */}
-      <section className="border-b border-border">
-        <div className="mx-auto max-w-6xl px-5 sm:px-8 pt-16 pb-14 sm:pt-24 sm:pb-20">
-          <div className="font-mono text-2xs uppercase tracking-[0.22em] text-muted">
-            Dispatch operations · London &amp; Chennai
+      <section className="border-b border-border overflow-hidden">
+        <div className="mx-auto max-w-6xl px-5 sm:px-8 pt-16 pb-14 sm:pt-20 sm:pb-16 grid lg:grid-cols-[1.05fr_0.95fr] gap-8 lg:gap-6 items-center">
+          <div>
+            <div className="font-mono text-2xs uppercase tracking-[0.22em] text-muted">
+              Dispatch operations · London &amp; Chennai
+            </div>
+            <h1 className="mt-6 font-display font-semibold text-text tracking-tight leading-[0.95] text-[2.75rem] sm:text-6xl lg:text-[4.25rem] max-w-2xl">
+              Run product delivery, from bay to <span className="text-accent">doorstep</span>.
+            </h1>
+            <p className="mt-7 text-lg text-text-2 max-w-xl leading-relaxed">
+              Jadvix Dispatch brings products, drivers, shifts, routes and communication into a
+              single system. Plan the day, assign the work, and watch every delivery move.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Button variant="primary" size="md" onClick={() => navigate('/signup')}>
+                Continue
+                <ArrowRight size={16} />
+              </Button>
+              <Button variant="secondary" onClick={() => navigate('/login')}>
+                Sign in to a portal
+              </Button>
+            </div>
           </div>
-          <h1 className="mt-6 font-display font-semibold text-text tracking-tight leading-[0.95] text-[2.75rem] sm:text-6xl lg:text-[4.75rem] max-w-4xl">
-            Run product delivery, from bay to <span className="text-accent">doorstep</span>.
-          </h1>
-          <p className="mt-7 text-lg text-text-2 max-w-xl leading-relaxed">
-            Jadvix Dispatch brings products, drivers, shifts, routes and communication into a single
-            system. Plan the day, assign the work, and watch every delivery move.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Button variant="primary" size="md" onClick={() => navigate('/signup')}>
-              Continue
-              <ArrowRight size={16} />
-            </Button>
-            <Button variant="secondary" onClick={() => navigate('/login')}>
-              Sign in to a portal
-            </Button>
+
+          {/* 3D parcel delivery scene — laptop / desktop only */}
+          <div className="relative hidden lg:block h-[440px]">
+            {showScene && (
+              <Suspense
+                fallback={
+                  <div className="absolute inset-0 grid place-items-center">
+                    <div className="font-mono text-2xs uppercase tracking-[0.2em] text-muted animate-pulse">
+                      Loading scene…
+                    </div>
+                  </div>
+                }
+              >
+                <HeroScene />
+              </Suspense>
+            )}
           </div>
         </div>
       </section>
