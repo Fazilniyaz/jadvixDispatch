@@ -1,6 +1,14 @@
 import { useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, Menu, Wifi, X, type LucideIcon } from 'lucide-react';
+import {
+  LogOut,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Wifi,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
 import { useStore } from '@/store/useStore';
@@ -28,6 +36,8 @@ export function PortalShell({
   const navigate = useNavigate();
   const user = useStore((s) => s.user);
   const logout = useStore((s) => s.logout);
+  const collapsed = useStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useStore((s) => s.toggleSidebar);
 
   const waves = useStore((s) => s.waves);
   const shifts = useStore((s) => s.shifts);
@@ -45,7 +55,7 @@ export function PortalShell({
     navigate('/login');
   };
 
-  const nav = (
+  const renderNav = (compact: boolean) => (
     <nav className="flex flex-col gap-0.5 p-2">
       {navItems.map((item) => (
         <NavLink
@@ -53,9 +63,11 @@ export function PortalShell({
           to={item.to}
           end={item.end}
           onClick={() => setDrawerOpen(false)}
+          title={compact ? item.label : undefined}
           className={({ isActive }) =>
             cn(
-              'flex items-center gap-2.5 px-3 h-9 text-[13px] font-medium rounded-[3px] border-l-2',
+              'flex items-center h-9 text-[13px] font-medium rounded-[3px] border-l-2',
+              compact ? 'justify-center px-0' : 'gap-2.5 px-3',
               isActive
                 ? 'bg-surface-2 text-text border-accent'
                 : 'text-text-2 hover:text-text hover:bg-surface-2 border-transparent'
@@ -63,7 +75,7 @@ export function PortalShell({
           }
         >
           <item.icon size={16} />
-          {item.label}
+          {!compact && item.label}
         </NavLink>
       ))}
     </nav>
@@ -72,18 +84,58 @@ export function PortalShell({
   return (
     <div className="h-full flex bg-bg">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-border bg-surface">
-        <div className="h-14 flex items-center px-4 border-b border-border">
-          <Link to="/">
-            <Logo />
+      <aside
+        className={cn(
+          'hidden lg:flex shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-200',
+          collapsed ? 'w-16' : 'w-60'
+        )}
+      >
+        <div
+          className={cn(
+            'h-14 flex items-center border-b border-border',
+            collapsed ? 'justify-center px-0' : 'justify-between px-4'
+          )}
+        >
+          <Link to="/" aria-label="Jadvix Dispatch home">
+            <Logo markOnly={collapsed} />
           </Link>
+          {!collapsed && (
+            <button
+              onClick={toggleSidebar}
+              aria-label="Collapse sidebar"
+              title="Collapse sidebar"
+              className="text-muted hover:text-text p-1 rounded-[3px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              <PanelLeftClose size={16} />
+            </button>
+          )}
         </div>
-        <div className="px-4 py-2 border-b border-border">
-          <span className="text-2xs uppercase tracking-wide text-muted">{portalLabel}</span>
-        </div>
-        <div className="flex-1 overflow-y-auto">{nav}</div>
-        <div className="border-t border-border p-3">
-          <UserBlock name={user?.name ?? 'User'} email={user?.email ?? ''} onLogout={onLogout} />
+
+        {collapsed ? (
+          <div className="flex justify-center py-2 border-b border-border">
+            <button
+              onClick={toggleSidebar}
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              className="text-muted hover:text-text p-1.5 rounded-[3px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              <PanelLeftOpen size={16} />
+            </button>
+          </div>
+        ) : (
+          <div className="px-4 py-2 border-b border-border">
+            <span className="text-2xs uppercase tracking-wide text-muted">{portalLabel}</span>
+          </div>
+        )}
+
+        <div className="flex-1 overflow-y-auto">{renderNav(collapsed)}</div>
+        <div className={cn('border-t border-border', collapsed ? 'p-2' : 'p-3')}>
+          <UserBlock
+            name={user?.name ?? 'User'}
+            email={user?.email ?? ''}
+            onLogout={onLogout}
+            compact={collapsed}
+          />
         </div>
       </aside>
 
@@ -105,7 +157,7 @@ export function PortalShell({
             <div className="px-4 py-2 border-b border-border">
               <span className="text-2xs uppercase tracking-wide text-muted">{portalLabel}</span>
             </div>
-            <div className="flex-1 overflow-y-auto">{nav}</div>
+            <div className="flex-1 overflow-y-auto">{renderNav(false)}</div>
             <div className="border-t border-border p-3">
               <UserBlock
                 name={user?.name ?? 'User'}
@@ -155,11 +207,34 @@ function UserBlock({
   name,
   email,
   onLogout,
+  compact = false,
 }: {
   name: string;
   email: string;
   onLogout: () => void;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <div className="flex flex-col items-center gap-1.5">
+        <span
+          title={name}
+          className="grid h-8 w-8 shrink-0 place-items-center bg-surface-2 border border-border rounded-[3px] text-2xs font-semibold text-text-2"
+        >
+          {initials(name)}
+        </span>
+        <button
+          onClick={onLogout}
+          aria-label="Log out"
+          title="Log out"
+          className="text-muted hover:text-exception p-1.5 rounded-[3px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          <LogOut size={16} />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2.5">
       <span className="grid h-8 w-8 shrink-0 place-items-center bg-surface-2 border border-border rounded-[3px] text-2xs font-semibold text-text-2">

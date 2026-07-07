@@ -54,6 +54,7 @@ interface StoreState {
   // auth
   user: AuthUser | null;
   theme: ThemePref;
+  sidebarCollapsed: boolean;
 
   // data
   products: Product[];
@@ -72,6 +73,7 @@ interface StoreState {
   login: (email: string, password: string) => { ok: boolean; role?: string };
   logout: () => void;
   setTheme: (t: ThemePref) => void;
+  toggleSidebar: () => void;
 
   // products
   addProduct: (p: Omit<Product, 'id' | 'code'> & { code?: string }) => void;
@@ -134,6 +136,7 @@ export const useStore = create<StoreState>()(
     (set) => ({
       user: null,
       theme: 'system',
+      sidebarCollapsed: false,
       ...seedState(),
 
       login: (email, password) => {
@@ -146,6 +149,7 @@ export const useStore = create<StoreState>()(
       },
       logout: () => set({ user: null }),
       setTheme: (theme) => set({ theme }),
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
       addProduct: (p) =>
         set((s) => ({
