@@ -65,18 +65,20 @@ body {
   font-feature-settings: 'cv05' 1, 'cv08' 1, 'cv11' 1, 'ss01' 1;
 }
 
-/* Display face for headings — one system, applied app-wide. */
+/* Editorial serif display face for headings — one system, applied app-wide. */
 @layer base {
   h1,
   h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
-    letter-spacing: -0.015em;
-    font-feature-settings: 'ss01' 1;
+  h3 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-optical-sizing: auto;
+    letter-spacing: -0.01em;
   }
+}
+
+/* Fraunces reads best a touch tighter at large sizes; utility for hero type. */
+.font-display {
+  font-optical-sizing: auto;
 }
 
 /* Focus visibility */

@@ -23,12 +23,14 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
         </div>
       </header>
 
-      <main className="flex-1 grid place-items-center px-4 py-10">
+      <main className="flex-1 grid place-items-center px-4 py-12">
         <div className="w-full max-w-sm">
-          <h1 className="text-xl font-semibold tracking-tight text-text">{title}</h1>
-          <p className="mt-1.5 text-[13px] text-text-2">{subtitle}</p>
-          <div className="mt-6">{children}</div>
-          {footer && <div className="mt-5 text-[13px] text-text-2">{footer}</div>}
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-text leading-tight">
+            {title}
+          </h1>
+          <p className="mt-3 text-sm text-text-2 leading-relaxed">{subtitle}</p>
+          <div className="mt-7">{children}</div>
+          {footer && <div className="mt-6 text-[13px] text-text-2">{footer}</div>}
         </div>
       </main>
 

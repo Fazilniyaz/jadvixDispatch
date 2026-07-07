@@ -180,7 +180,9 @@ export function PortalShell({
             >
               <Menu size={20} />
             </button>
-            <h1 className="text-sm font-semibold text-text truncate">{pageTitle}</h1>
+            <h1 className="font-sans text-sm font-semibold text-text truncate tracking-tight">
+              {pageTitle}
+            </h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <span className="hidden sm:inline-flex items-center gap-1.5 text-2xs text-text-2 border border-border rounded-[3px] px-2 py-1">

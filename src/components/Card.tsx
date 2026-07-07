@@ -33,7 +33,9 @@ export function CardHeader({ title, subtitle, action, className }: CardHeaderPro
       )}
     >
       <div className="min-w-0">
-        <h3 className="text-sm font-semibold text-text leading-tight">{title}</h3>
+        <h3 className="font-display text-[15px] font-semibold text-text leading-snug tracking-tight">
+          {title}
+        </h3>
         {subtitle && <p className="text-[13px] text-text-2 mt-0.5">{subtitle}</p>}
       </div>
       {action && <div className="shrink-0">{action}</div>}

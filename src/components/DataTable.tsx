@@ -31,12 +31,12 @@ export function DataTable<T>({
     <div className={cn('w-full overflow-x-auto', className)}>
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-border">
+          <tr className="border-b border-border bg-surface-2">
             {columns.map((c) => (
               <th
                 key={c.key}
                 className={cn(
-                  'text-left font-medium text-muted text-2xs uppercase tracking-wide px-3 py-2 whitespace-nowrap',
+                  'text-left font-mono font-medium text-muted text-2xs uppercase tracking-[0.12em] px-3 py-2.5 whitespace-nowrap',
                   c.headerClassName
                 )}
               >
