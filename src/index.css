@@ -45,6 +45,15 @@
   border-color: var(--border);
 }
 
+/*
+ * Light mode only: give each section (Card/panel) a thicker outline for
+ * stronger definition. Same border color — only the width changes. Dark mode
+ * keeps its 1px hairline.
+ */
+[data-theme='light'] .section-card {
+  border-width: 1.33px;
+}
+
 html,
 body,
 #root {
