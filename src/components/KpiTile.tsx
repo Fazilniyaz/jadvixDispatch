@@ -18,7 +18,7 @@ export function KpiTile({ label, value, hint, icon: Icon, accent }: KpiTileProps
         {Icon && <Icon size={16} className="text-muted" />}
       </div>
       <div
-        className="mt-2 text-2xl font-semibold tracking-tight tnum leading-none"
+        className="mt-2 font-display text-2xl font-semibold tracking-tight tnum leading-none"
         style={{ color: accent ? 'var(--accent)' : 'var(--text)' }}
       >
         {value}

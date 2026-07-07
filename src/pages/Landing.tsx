@@ -230,7 +230,7 @@ function PortalCard({
 function Stat({ value, label }: { value: string; label: string }) {
   return (
     <div>
-      <div className="text-2xl font-semibold tracking-tight text-text tnum">{value}</div>
+      <div className="font-display text-2xl font-semibold tracking-tight text-text tnum">{value}</div>
       <div className="text-2xs text-muted mt-1">{label}</div>
     </div>
   );

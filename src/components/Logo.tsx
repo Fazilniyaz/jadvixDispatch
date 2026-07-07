@@ -15,7 +15,9 @@ export function Logo({ className, showProduct = true, markOnly = false }: LogoPr
       </span>
       {!markOnly && (
         <div className="leading-tight">
-          <span className="block text-sm font-semibold text-text tracking-tight">Jadvix Ltd</span>
+          <span className="block font-display text-sm font-semibold text-text tracking-tight">
+            Jadvix Ltd
+          </span>
           {showProduct && (
             <span className="block text-2xs text-muted tracking-wide">Jadvix Dispatch</span>
           )}

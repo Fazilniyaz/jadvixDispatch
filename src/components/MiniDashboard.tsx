@@ -61,7 +61,7 @@ function Metric({ label, value, accent }: { label: string; value: number; accent
   return (
     <div className="px-4 py-3">
       <div
-        className="text-2xl font-semibold tnum leading-none"
+        className="font-display text-2xl font-semibold tnum leading-none"
         style={{ color: accent ? 'var(--accent)' : 'var(--text)' }}
       >
         {value}

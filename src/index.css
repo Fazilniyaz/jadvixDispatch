@@ -59,7 +59,24 @@ body {
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* Inter's cleaner alternates: single-storey a, tabular-friendly, disambiguated glyphs */
+  font-feature-settings: 'cv05' 1, 'cv08' 1, 'cv11' 1, 'ss01' 1;
+}
+
+/* Display face for headings — one system, applied app-wide. */
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.015em;
+    font-feature-settings: 'ss01' 1;
+  }
 }
 
 /* Focus visibility */
