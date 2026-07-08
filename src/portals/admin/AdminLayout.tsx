@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import {
+  BarChart3,
   CalendarClock,
   LayoutDashboard,
   MessageSquare,
@@ -9,6 +10,7 @@ import {
   Settings as SettingsIcon,
   Users,
   Warehouse,
+  Wrench,
 } from 'lucide-react';
 import { PortalShell, type NavItem } from '@/components/PortalShell';
 import { useStore } from '@/store/useStore';
@@ -18,6 +20,7 @@ export default function AdminLayout() {
 
   const navItems: NavItem[] = [
     { to: '/admin', label: labels.dashboard, icon: LayoutDashboard, end: true },
+    { to: '/admin/stats', label: 'Stats', icon: BarChart3 },
     { to: '/admin/products', label: labels.products, icon: Package },
     { to: '/admin/employees', label: labels.employees, icon: Users },
     { to: '/admin/shifts', label: labels.shifts, icon: CalendarClock },
@@ -25,6 +28,7 @@ export default function AdminLayout() {
     { to: '/admin/routes', label: labels.routes, icon: RouteIcon },
     { to: '/admin/leave', label: labels.leave, icon: PlaneTakeoff },
     { to: '/admin/communication', label: labels.communication, icon: MessageSquare },
+    { to: '/admin/vehicles', label: labels.vehicles, icon: Wrench },
     { to: '/admin/settings', label: labels.settings, icon: SettingsIcon },
   ];
 

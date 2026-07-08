@@ -6,12 +6,10 @@ import { useStore } from '@/store/useStore';
 // Reads the same seeded store the portals use.
 export function MiniDashboard() {
   const products = useStore((s) => s.products);
-  const activeWaveId = useStore((s) => s.activeWaveId);
-  const waves = useStore((s) => s.waves);
+  const activeShiftId = useStore((s) => s.activeShiftId);
   const shifts = useStore((s) => s.shifts);
 
-  const activeWave = waves.find((w) => w.id === activeWaveId);
-  const activeShift = shifts.find((s) => s.id === activeWave?.shiftId);
+  const activeShift = shifts.find((s) => s.id === activeShiftId);
 
   const inTransit = products.filter((p) => p.status === 'transit' || p.status === 'out').length;
   const delivered = products.filter((p) => p.status === 'delivered').length;
@@ -27,7 +25,7 @@ export function MiniDashboard() {
           Dispatch overview
         </div>
         <span className="text-2xs text-muted">
-          {activeShift?.name ?? 'Morning'} · Wave {activeWave?.number ?? '2nd'} active
+          {activeShift?.name ?? 'Morning'} shift active
         </span>
       </div>
 

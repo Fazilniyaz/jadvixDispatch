@@ -46,13 +46,13 @@ const features = [
   },
   {
     icon: Waves,
-    title: 'Shifts & waves',
-    body: 'Plan the day in shifts and waves, and always know which wave is running right now.',
+    title: 'Shifts',
+    body: 'Plan the day in shifts, and always know which shift is running right now.',
   },
   {
     icon: RouteIcon,
-    title: 'Routes & bays',
-    body: 'Ordered stops by area and coordinate, matched to the right loading bay and vehicle.',
+    title: 'Locations & bays',
+    body: 'Delivery locations by area and coordinate, matched to the right loading bay and vehicle.',
   },
   {
     icon: MessageSquare,
@@ -76,7 +76,7 @@ export default function Landing() {
             <Button variant="ghost" onClick={() => navigate('/login')}>
               Sign in
             </Button>
-            <Button variant="primary" onClick={() => navigate('/signup')}>
+            <Button variant="primary" onClick={() => navigate('/login')}>
               Continue
             </Button>
           </div>
@@ -94,11 +94,11 @@ export default function Landing() {
               Run product delivery, from bay to <span className="text-accent">doorstep</span>.
             </h1>
             <p className="mt-7 text-lg text-text-2 max-w-xl leading-relaxed">
-              Jadvix Dispatch brings products, drivers, shifts, routes and communication into a
+              Jadvix Dispatch brings products, drivers, shifts, locations and communication into a
               single system. Plan the day, assign the work, and watch every delivery move.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Button variant="primary" size="md" onClick={() => navigate('/signup')}>
+              <Button variant="primary" size="md" onClick={() => navigate('/login')}>
                 Continue
                 <ArrowRight size={16} />
               </Button>
@@ -143,7 +143,7 @@ export default function Landing() {
                 side is the same component the admin portal runs — reading live from shared state.
               </p>
               <Link
-                to="/signup"
+                to="/login"
                 className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-hover"
               >
                 Open the full product
@@ -207,8 +207,8 @@ export default function Landing() {
               tag="Super Admin"
               title="Plan and oversee everything"
               points={[
-                'Create and assign products across drivers and waves',
-                'Manage staff, shifts, bays and routes',
+                'Create and assign products across drivers and shifts',
+                'Manage staff, shifts, bays and locations',
                 'Approve leave and track exceptions live',
               ]}
             />
@@ -216,9 +216,9 @@ export default function Landing() {
               tag="Driver"
               title="Everything for the day, nothing more"
               points={[
-                'See today’s shift, wave, bay and assigned products',
+                'See today’s shift, bay and assigned products',
                 'Advance each delivery from picked to delivered',
-                'Follow the ordered route and message dispatch',
+                'Follow your assigned locations and message dispatch',
               ]}
             />
           </div>
@@ -230,7 +230,7 @@ export default function Landing() {
         <div className="mx-auto max-w-6xl px-5 sm:px-8 py-14 grid grid-cols-2 sm:grid-cols-4 gap-8">
           <Stat value="2" label="Operating hubs" />
           <Stat value="96%" label="On-time delivery" />
-          <Stat value="5" label="Active routes" />
+          <Stat value="5" label="Locations" />
           <Stat value="24/7" label="Shift coverage" />
         </div>
       </section>
@@ -243,11 +243,11 @@ export default function Landing() {
               See the operation in motion.
             </h2>
             <p className="mt-4 text-[15px] text-text-2 max-w-md sm:mx-0 mx-auto">
-              Continue to create an account, then sign in to either portal with the demo credentials.
+              Continue to sign in to either portal with the demo credentials.
             </p>
           </div>
           <div className="mt-8 sm:mt-0 shrink-0">
-            <Button variant="primary" size="md" onClick={() => navigate('/signup')}>
+            <Button variant="primary" size="md" onClick={() => navigate('/login')}>
               Continue
               <ArrowRight size={16} />
             </Button>
@@ -266,7 +266,7 @@ export default function Landing() {
             <Link to="/login" className="hover:text-text">
               Sign in
             </Link>
-            <Link to="/signup" className="hover:text-text">
+            <Link to="/login" className="hover:text-text">
               Continue
             </Link>
           </div>

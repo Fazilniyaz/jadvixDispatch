@@ -13,7 +13,7 @@ const MAP: Record<string, { color: string; label?: string }> = {
   // delivery status
   pending: { color: 'var(--scheduled)' },
   failed: { color: 'var(--exception)' },
-  // wave / route
+  // shift / route
   active: { color: 'var(--delivered)' },
   completed: { color: 'var(--scheduled)' },
   planned: { color: 'var(--out)' },

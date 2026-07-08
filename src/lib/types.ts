@@ -20,7 +20,6 @@ export interface Product {
   assignedEmployeeId: string | null;
   arrivalInfo: string; // how / when received
   shiftId: string | null;
-  waveId: string | null;
   bayId: string | null;
   routeId: string | null;
   deliveryStatus: DeliveryStatus;
@@ -46,37 +45,31 @@ export interface Employee {
   shift: string; // shift name
   status: EmployeeStatus;
   deliveredCount: number;
+  errorCount: number; // failed / exception deliveries
   recentBayIds: string[];
   recentRouteIds: string[];
   history: DeliveryRecord[];
 }
 
-export type WaveStatus = 'pending' | 'active' | 'completed';
-
-export interface Wave {
-  id: string;
-  shiftId: string;
-  number: string; // "1st", "2nd"
-  window: string;
-  status: WaveStatus;
-  assignedEmployeeIds: string[];
-}
+// Each shift runs as a single wave, so its status lives on the shift itself.
+export type ShiftStatus = 'pending' | 'active' | 'completed';
 
 export interface Shift {
   id: string;
   name: string; // Morning | Afternoon | Night
   window: string;
-  waveIds: string[];
+  status: ShiftStatus;
 }
 
 export interface Bay {
   id: string;
+  shiftId: string | null; // the shift this bay runs under
   assignedDriverId: string | null;
   vehicleNo: string;
-  loaded: number;
-  capacity: number;
+  stocks: number; // number of items staged in the bay
 }
 
+// A single delivery point (area + coordinates + ETA).
 export interface RouteStop {
   areaName: string;
   coordinates: string; // "13.02, 80.22"
@@ -85,10 +78,14 @@ export interface RouteStop {
 
 export type RouteStatus = 'planned' | 'active' | 'completed';
 
+// A location is a single delivery point that belongs to a shift.
 export interface Route {
   id: string;
-  name: string; // "Area A -> Area B"
-  stops: RouteStop[];
+  name: string;
+  areaName: string;
+  coordinates: string; // "13.02, 80.22"
+  eta: string;
+  shiftId: string | null;
   assignedDriverId: string | null;
   order: number;
   status: RouteStatus;
@@ -113,6 +110,22 @@ export interface Message {
   time: string;
 }
 
+// Vehicle repair tickets submitted by drivers and reviewed by admin.
+export type VehicleTicketStatus = 'submitted' | 'reviewed' | 'accepted' | 'failed';
+
+export interface VehicleTicket {
+  id: string;
+  employeeId: string;        // the driver who submitted
+  vehicleNo: string;
+  subject: string;            // short title
+  notes: string;              // description of the repair
+  photoAttached: boolean;     // whether a photo was attached
+  status: VehicleTicketStatus;
+  adminRemarks: string;       // admin can add remarks during review
+  createdAt: string;          // ISO date string
+  updatedAt: string;          // ISO date string
+}
+
 export type ModuleKey =
   | 'dashboard'
   | 'products'
@@ -122,6 +135,7 @@ export type ModuleKey =
   | 'routes'
   | 'leave'
   | 'communication'
+  | 'vehicles'
   | 'settings';
 
 export type ModuleLabels = Record<ModuleKey, string>;

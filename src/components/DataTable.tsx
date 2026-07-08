@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface Column<T> {
@@ -16,6 +16,10 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   empty?: ReactNode;
   className?: string;
+  /** Key of the row whose expanded panel is open, if any. */
+  expandedKey?: string | null;
+  /** Renders an inline panel below the row when its key matches `expandedKey`. */
+  renderExpanded?: (row: T) => ReactNode;
 }
 
 // Zero-radius table with hairline row separators. Scrolls horizontally on small screens.
@@ -26,6 +30,8 @@ export function DataTable<T>({
   onRowClick,
   empty = 'No records.',
   className,
+  expandedKey,
+  renderExpanded,
 }: DataTableProps<T>) {
   return (
     <div className={cn('w-full overflow-x-auto', className)}>
@@ -56,25 +62,39 @@ export function DataTable<T>({
               </td>
             </tr>
           ) : (
-            rows.map((row) => (
-              <tr
-                key={rowKey(row)}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={cn(
-                  'border-b border-border last:border-0',
-                  onRowClick && 'cursor-pointer hover:bg-surface-2'
-                )}
-              >
-                {columns.map((c) => (
-                  <td
-                    key={c.key}
-                    className={cn('px-3 py-2.5 align-middle text-text', c.className)}
+            rows.map((row) => {
+              const key = rowKey(row);
+              const isExpanded = !!renderExpanded && expandedKey === key;
+              return (
+                <Fragment key={key}>
+                  <tr
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    className={cn(
+                      'border-b border-border',
+                      !isExpanded && 'last:border-0',
+                      onRowClick && 'cursor-pointer hover:bg-surface-2',
+                      isExpanded && 'bg-surface-2'
+                    )}
                   >
-                    {c.render(row)}
-                  </td>
-                ))}
-              </tr>
-            ))
+                    {columns.map((c) => (
+                      <td
+                        key={c.key}
+                        className={cn('px-3 py-2.5 align-middle text-text', c.className)}
+                      >
+                        {c.render(row)}
+                      </td>
+                    ))}
+                  </tr>
+                  {isExpanded && (
+                    <tr className="border-b border-border last:border-0 bg-surface-2">
+                      <td colSpan={columns.length} className="p-0">
+                        {renderExpanded(row)}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })
           )}
         </tbody>
       </table>

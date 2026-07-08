@@ -8,6 +8,7 @@ import Login from '@/pages/Login';
 
 import AdminLayout from '@/portals/admin/AdminLayout';
 import Dashboard from '@/portals/admin/Dashboard';
+import Stats from '@/portals/shared/Stats';
 import ProductManagement from '@/portals/admin/ProductManagement';
 import EmployeeManagement from '@/portals/admin/EmployeeManagement';
 import ShiftManagement from '@/portals/admin/ShiftManagement';
@@ -15,13 +16,15 @@ import BayManagement from '@/portals/admin/BayManagement';
 import RouteManagement from '@/portals/admin/RouteManagement';
 import LeaveRequests from '@/portals/admin/LeaveRequests';
 import Communication from '@/portals/admin/Communication';
-import Settings from '@/portals/admin/Settings';
+import VehicleManagement from '@/portals/admin/VehicleManagement';
+import Settings from '@/portals/shared/Settings';
 
 import DriverLayout from '@/portals/driver/DriverLayout';
 import Today from '@/portals/driver/Today';
-import MyDeliveries from '@/portals/driver/MyDeliveries';
+import MyPerformance from '@/portals/driver/MyPerformance';
 import MyRoute from '@/portals/driver/MyRoute';
 import DriverCommunication from '@/portals/driver/DriverCommunication';
+import MyVehicles from '@/portals/driver/MyVehicles';
 import Leave from '@/portals/driver/Leave';
 
 export default function App() {
@@ -42,6 +45,7 @@ export default function App() {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="stats" element={<Stats />} />
         <Route path="products" element={<ProductManagement />} />
         <Route path="employees" element={<EmployeeManagement />} />
         <Route path="shifts" element={<ShiftManagement />} />
@@ -49,6 +53,7 @@ export default function App() {
         <Route path="routes" element={<RouteManagement />} />
         <Route path="leave" element={<LeaveRequests />} />
         <Route path="communication" element={<Communication />} />
+        <Route path="vehicles" element={<VehicleManagement />} />
         <Route path="settings" element={<Settings />} />
       </Route>
 
@@ -61,10 +66,13 @@ export default function App() {
         }
       >
         <Route index element={<Today />} />
-        <Route path="deliveries" element={<MyDeliveries />} />
+        <Route path="stats" element={<Stats />} />
+        <Route path="performance" element={<MyPerformance />} />
         <Route path="route" element={<MyRoute />} />
         <Route path="communication" element={<DriverCommunication />} />
+        <Route path="vehicles" element={<MyVehicles />} />
         <Route path="leave" element={<Leave />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

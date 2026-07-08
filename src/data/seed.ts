@@ -7,7 +7,7 @@ import type {
   Product,
   Route,
   Shift,
-  Wave,
+  VehicleTicket,
 } from '@/lib/types';
 
 // ---- Module labels (renamable in Settings) ----
@@ -17,9 +17,10 @@ export const defaultModuleLabels: ModuleLabels = {
   employees: 'Employee Management',
   shifts: 'Shift Management',
   bays: 'Bay Management',
-  routes: 'Route Management',
+  routes: 'Location Management',
   leave: 'Leave Requests',
   communication: 'Communication',
+  vehicles: 'Vehicle Management',
   settings: 'Settings',
 };
 
@@ -35,6 +36,7 @@ export const seedEmployees: Employee[] = [
     shift: 'Morning',
     status: 'active',
     deliveredCount: 34,
+    errorCount: 2,
     recentBayIds: ['bay-01', 'bay-04'],
     recentRouteIds: ['route-01', 'route-03'],
     history: [
@@ -53,6 +55,7 @@ export const seedEmployees: Employee[] = [
     shift: 'Morning',
     status: 'active',
     deliveredCount: 28,
+    errorCount: 3,
     recentBayIds: ['bay-02'],
     recentRouteIds: ['route-02'],
     history: [
@@ -69,6 +72,7 @@ export const seedEmployees: Employee[] = [
     shift: 'Afternoon',
     status: 'active',
     deliveredCount: 41,
+    errorCount: 1,
     recentBayIds: ['bay-03'],
     recentRouteIds: ['route-04'],
     history: [
@@ -85,6 +89,7 @@ export const seedEmployees: Employee[] = [
     shift: 'Afternoon',
     status: 'leave',
     deliveredCount: 19,
+    errorCount: 2,
     recentBayIds: ['bay-05'],
     recentRouteIds: ['route-05'],
     history: [{ date: '2026-07-03', productCode: 'JDX-2D88', route: 'Hackney line' }],
@@ -98,6 +103,7 @@ export const seedEmployees: Employee[] = [
     shift: 'Night',
     status: 'active',
     deliveredCount: 22,
+    errorCount: 4,
     recentBayIds: ['bay-06'],
     recentRouteIds: ['route-03'],
     history: [{ date: '2026-07-06', productCode: 'JDX-0E7A', route: 'Greenwich corridor' }],
@@ -111,6 +117,7 @@ export const seedEmployees: Employee[] = [
     shift: 'Morning',
     status: 'active',
     deliveredCount: 0,
+    errorCount: 0,
     recentBayIds: [],
     recentRouteIds: [],
     history: [],
@@ -124,6 +131,7 @@ export const seedEmployees: Employee[] = [
     shift: 'Morning',
     status: 'active',
     deliveredCount: 30,
+    errorCount: 2,
     recentBayIds: ['bay-04'],
     recentRouteIds: ['route-01'],
     history: [{ date: '2026-07-06', productCode: 'JDX-4417', route: 'Islington loop' }],
@@ -137,140 +145,90 @@ export const seedEmployees: Employee[] = [
     shift: 'Afternoon',
     status: 'active',
     deliveredCount: 0,
+    errorCount: 0,
     recentBayIds: [],
     recentRouteIds: [],
     history: [],
   },
 ];
 
-// ---- Shifts & waves ----
+// ---- Shifts ----
+// One shift runs as one wave, so the running/pending state lives on the shift.
 export const seedShifts: Shift[] = [
-  { id: 'shift-01', name: 'Morning', window: '06:00 – 14:00', waveIds: ['wave-01', 'wave-02'] },
-  { id: 'shift-02', name: 'Afternoon', window: '14:00 – 22:00', waveIds: ['wave-03', 'wave-04'] },
-  { id: 'shift-03', name: 'Night', window: '22:00 – 06:00', waveIds: ['wave-05'] },
+  { id: 'shift-01', name: 'Morning', window: '06:00 – 14:00', status: 'active' },
+  { id: 'shift-02', name: 'Afternoon', window: '14:00 – 22:00', status: 'pending' },
+  { id: 'shift-03', name: 'Night', window: '22:00 – 06:00', status: 'pending' },
 ];
 
-export const seedWaves: Wave[] = [
-  {
-    id: 'wave-01',
-    shiftId: 'shift-01',
-    number: '1st',
-    window: '06:00 – 10:00',
-    status: 'completed',
-    assignedEmployeeIds: ['emp-01', 'emp-07'],
-  },
-  {
-    id: 'wave-02',
-    shiftId: 'shift-01',
-    number: '2nd',
-    window: '10:00 – 14:00',
-    status: 'active',
-    assignedEmployeeIds: ['emp-01', 'emp-02', 'emp-07'],
-  },
-  {
-    id: 'wave-03',
-    shiftId: 'shift-02',
-    number: '1st',
-    window: '14:00 – 18:00',
-    status: 'pending',
-    assignedEmployeeIds: ['emp-03'],
-  },
-  {
-    id: 'wave-04',
-    shiftId: 'shift-02',
-    number: '2nd',
-    window: '18:00 – 22:00',
-    status: 'pending',
-    assignedEmployeeIds: ['emp-03', 'emp-04'],
-  },
-  {
-    id: 'wave-05',
-    shiftId: 'shift-03',
-    number: '1st',
-    window: '22:00 – 02:00',
-    status: 'pending',
-    assignedEmployeeIds: ['emp-05'],
-  },
-];
-
-// The demo's "currently running" shift + wave.
+// The demo's "currently running" shift.
 export const activeShiftId = 'shift-01';
-export const activeWaveId = 'wave-02';
 
 // ---- Bays ----
 export const seedBays: Bay[] = [
-  { id: 'bay-01', assignedDriverId: 'emp-01', vehicleNo: 'TN-09-BX-4471', loaded: 18, capacity: 24 },
-  { id: 'bay-02', assignedDriverId: 'emp-02', vehicleNo: 'TN-07-CH-2093', loaded: 24, capacity: 24 },
-  { id: 'bay-03', assignedDriverId: 'emp-03', vehicleNo: 'LK21 XJV', loaded: 9, capacity: 20 },
-  { id: 'bay-04', assignedDriverId: 'emp-07', vehicleNo: 'TN-11-DK-1207', loaded: 14, capacity: 24 },
-  { id: 'bay-05', assignedDriverId: null, vehicleNo: '—', loaded: 0, capacity: 20 },
-  { id: 'bay-06', assignedDriverId: 'emp-05', vehicleNo: 'TN-01-AZ-8890', loaded: 6, capacity: 18 },
+  { id: 'bay-01', shiftId: 'shift-01', assignedDriverId: 'emp-01', vehicleNo: 'TN-09-BX-4471', stocks: 18 },
+  { id: 'bay-02', shiftId: 'shift-01', assignedDriverId: 'emp-02', vehicleNo: 'TN-07-CH-2093', stocks: 24 },
+  { id: 'bay-03', shiftId: 'shift-02', assignedDriverId: 'emp-03', vehicleNo: 'LK21 XJV', stocks: 9 },
+  { id: 'bay-04', shiftId: 'shift-01', assignedDriverId: 'emp-07', vehicleNo: 'TN-11-DK-1207', stocks: 14 },
+  { id: 'bay-05', shiftId: 'shift-02', assignedDriverId: null, vehicleNo: '—', stocks: 0 },
+  { id: 'bay-06', shiftId: 'shift-03', assignedDriverId: 'emp-05', vehicleNo: 'TN-01-AZ-8890', stocks: 6 },
 ];
 
-// ---- Routes (text-based: area name + coordinates) ----
+// ---- Locations (one delivery point per location, grouped by shift) ----
 export const seedRoutes: Route[] = [
   {
     id: 'route-01',
-    name: 'Islington loop',
+    name: 'Islington',
+    areaName: 'Islington',
+    coordinates: '51.5465, -0.1058',
+    eta: '10:10',
+    shiftId: 'shift-01',
     assignedDriverId: 'emp-01',
     order: 1,
     status: 'active',
-    stops: [
-      { areaName: 'Kings Cross Depot', coordinates: '51.5308, -0.1238', eta: '09:00' },
-      { areaName: 'Angel', coordinates: '51.5322, -0.1058', eta: '09:35' },
-      { areaName: 'Islington', coordinates: '51.5465, -0.1058', eta: '10:10' },
-      { areaName: 'Highbury', coordinates: '51.5528, -0.0969', eta: '10:45' },
-    ],
   },
   {
     id: 'route-02',
-    name: 'Wandsworth run',
+    name: 'Wandsworth',
+    areaName: 'Wandsworth',
+    coordinates: '51.4571, -0.1927',
+    eta: '10:40',
+    shiftId: 'shift-01',
     assignedDriverId: 'emp-02',
     order: 2,
     status: 'active',
-    stops: [
-      { areaName: 'Battersea Depot', coordinates: '51.4791, -0.1445', eta: '09:15' },
-      { areaName: 'Clapham Junction', coordinates: '51.4645, -0.1705', eta: '09:55' },
-      { areaName: 'Wandsworth', coordinates: '51.4571, -0.1927', eta: '10:40' },
-    ],
   },
   {
     id: 'route-03',
-    name: 'Greenwich corridor',
+    name: 'Greenwich',
+    areaName: 'Greenwich',
+    coordinates: '51.4826, -0.0077',
+    eta: '23:05',
+    shiftId: 'shift-03',
     assignedDriverId: 'emp-05',
     order: 3,
     status: 'planned',
-    stops: [
-      { areaName: 'Deptford Depot', coordinates: '51.4790, -0.0269', eta: '22:30' },
-      { areaName: 'Greenwich', coordinates: '51.4826, -0.0077', eta: '23:05' },
-      { areaName: 'Blackheath', coordinates: '51.4657, 0.0086', eta: '23:40' },
-      { areaName: 'Lewisham', coordinates: '51.4570, -0.0140', eta: '00:10' },
-    ],
   },
   {
     id: 'route-04',
-    name: 'Camden circuit',
+    name: 'Camden Town',
+    areaName: 'Camden Town',
+    coordinates: '51.5390, -0.1426',
+    eta: '15:35',
+    shiftId: 'shift-02',
     assignedDriverId: 'emp-03',
     order: 4,
     status: 'active',
-    stops: [
-      { areaName: 'Kings Cross Depot', coordinates: '51.5308, -0.1238', eta: '15:00' },
-      { areaName: 'Camden Town', coordinates: '51.5390, -0.1426', eta: '15:35' },
-      { areaName: 'Kentish Town', coordinates: '51.5507, -0.1402', eta: '16:05' },
-      { areaName: 'Archway', coordinates: '51.5654, -0.1353', eta: '16:40' },
-    ],
   },
   {
     id: 'route-05',
-    name: 'Hackney line',
+    name: 'Hackney Central',
+    areaName: 'Hackney Central',
+    coordinates: '51.5470, -0.0554',
+    eta: '19:15',
+    shiftId: 'shift-02',
     assignedDriverId: null,
     order: 5,
     status: 'planned',
-    stops: [
-      { areaName: 'Kings Cross Depot', coordinates: '51.5308, -0.1238', eta: '18:00' },
-      { areaName: 'Dalston', coordinates: '51.5461, -0.0757', eta: '18:40' },
-      { areaName: 'Hackney Central', coordinates: '51.5470, -0.0554', eta: '19:15' },
-    ],
   },
 ];
 
@@ -284,7 +242,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-01',
     arrivalInfo: 'Inbound van · 06 Jul 07:10',
     shiftId: 'shift-01',
-    waveId: 'wave-02',
     bayId: 'bay-01',
     routeId: 'route-01',
     deliveryStatus: 'pending',
@@ -299,7 +256,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-01',
     arrivalInfo: 'Bakery dock · 06 Jul 05:40',
     shiftId: 'shift-01',
-    waveId: 'wave-02',
     bayId: 'bay-01',
     routeId: 'route-01',
     deliveryStatus: 'pending',
@@ -314,7 +270,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-02',
     arrivalInfo: 'Rail freight · 06 Jul 06:25',
     shiftId: 'shift-01',
-    waveId: 'wave-02',
     bayId: 'bay-02',
     routeId: 'route-02',
     deliveryStatus: 'pending',
@@ -329,7 +284,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-02',
     arrivalInfo: 'Cold chain · 06 Jul 06:50',
     shiftId: 'shift-01',
-    waveId: 'wave-02',
     bayId: 'bay-02',
     routeId: 'route-02',
     deliveryStatus: 'pending',
@@ -344,7 +298,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-07',
     arrivalInfo: 'Inbound van · 06 Jul 07:30',
     shiftId: 'shift-01',
-    waveId: 'wave-01',
     bayId: 'bay-04',
     routeId: 'route-01',
     deliveryStatus: 'delivered',
@@ -359,7 +312,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-03',
     arrivalInfo: 'Kings Cross dock · 06 Jul 13:15',
     shiftId: 'shift-02',
-    waveId: 'wave-03',
     bayId: 'bay-03',
     routeId: 'route-04',
     deliveryStatus: 'pending',
@@ -374,7 +326,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-03',
     arrivalInfo: 'Bakery dock · 06 Jul 12:50',
     shiftId: 'shift-02',
-    waveId: 'wave-03',
     bayId: 'bay-03',
     routeId: 'route-04',
     deliveryStatus: 'pending',
@@ -389,7 +340,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: null,
     arrivalInfo: 'Cold chain · 06 Jul 13:40',
     shiftId: 'shift-02',
-    waveId: 'wave-04',
     bayId: 'bay-05',
     routeId: 'route-05',
     deliveryStatus: 'pending',
@@ -404,7 +354,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-05',
     arrivalInfo: 'Inbound van · 06 Jul 21:20',
     shiftId: 'shift-03',
-    waveId: 'wave-05',
     bayId: 'bay-06',
     routeId: 'route-03',
     deliveryStatus: 'pending',
@@ -419,7 +368,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-01',
     arrivalInfo: 'Inbound van · 06 Jul 07:05',
     shiftId: 'shift-01',
-    waveId: 'wave-02',
     bayId: 'bay-01',
     routeId: 'route-01',
     deliveryStatus: 'pending',
@@ -434,7 +382,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-07',
     arrivalInfo: 'Inbound van · 06 Jul 07:35',
     shiftId: 'shift-01',
-    waveId: 'wave-01',
     bayId: 'bay-04',
     routeId: 'route-01',
     deliveryStatus: 'delivered',
@@ -449,7 +396,6 @@ export const seedProducts: Product[] = [
     assignedEmployeeId: 'emp-02',
     arrivalInfo: 'Rail freight · 06 Jul 06:30',
     shiftId: 'shift-01',
-    waveId: 'wave-02',
     bayId: 'bay-02',
     routeId: 'route-02',
     deliveryStatus: 'failed',
@@ -484,7 +430,7 @@ export const seedMessages: Message[] = [
     id: 'm-01',
     from: 'dispatch',
     authorId: 'emp-06',
-    text: 'Morning wave 2 is live. Confirm bay loads before rolling out.',
+    text: 'Morning shift is live. Confirm bay loads before rolling out.',
     time: '09:58',
   },
   {
@@ -500,5 +446,33 @@ export const seedMessages: Message[] = [
     authorId: 'emp-06',
     text: 'Noted. JDX-77B1 is time-sensitive, prioritise it.',
     time: '10:04',
+  },
+];
+
+// ---- Vehicle tickets ----
+export const seedVehicleTickets: VehicleTicket[] = [
+  {
+    id: 'vt-01',
+    employeeId: 'emp-01', // Arjun Menon
+    vehicleNo: 'TN-09-BX-4471',
+    subject: 'Flat tire on front left',
+    notes: 'Punctured by a nail while taking a shortcut near Islington loop.',
+    photoAttached: true,
+    status: 'submitted',
+    adminRemarks: '',
+    createdAt: '2026-07-08T08:30:00Z',
+    updatedAt: '2026-07-08T08:30:00Z',
+  },
+  {
+    id: 'vt-02',
+    employeeId: 'emp-02', // Priya Ramesh
+    vehicleNo: 'TN-07-CH-2093',
+    subject: 'Engine making unusual noise',
+    notes: 'Rattling sound from engine when driving above 40mph. Needs checking.',
+    photoAttached: false,
+    status: 'reviewed',
+    adminRemarks: 'We will inspect it after your shift today.',
+    createdAt: '2026-07-07T14:15:00Z',
+    updatedAt: '2026-07-07T15:00:00Z',
   },
 ];

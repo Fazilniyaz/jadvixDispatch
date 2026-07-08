@@ -39,11 +39,9 @@ export function PortalShell({
   const collapsed = useStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useStore((s) => s.toggleSidebar);
 
-  const waves = useStore((s) => s.waves);
   const shifts = useStore((s) => s.shifts);
-  const activeWaveId = useStore((s) => s.activeWaveId);
-  const activeWave = waves.find((w) => w.id === activeWaveId);
-  const activeShift = shifts.find((s) => s.id === activeWave?.shiftId);
+  const activeShiftId = useStore((s) => s.activeShiftId);
+  const activeShift = shifts.find((s) => s.id === activeShiftId);
 
   const current = [...navItems]
     .sort((a, b) => b.to.length - a.to.length)
@@ -187,7 +185,7 @@ export function PortalShell({
           <div className="flex items-center gap-2 sm:gap-3">
             <span className="hidden sm:inline-flex items-center gap-1.5 text-2xs text-text-2 border border-border rounded-[3px] px-2 py-1">
               <span className="h-1.5 w-1.5 rounded-full bg-delivered" />
-              {activeShift?.name ?? 'Morning'} · Wave {activeWave?.number ?? '—'} active
+              {activeShift?.name ?? 'Morning'} shift active
             </span>
             <span className="hidden md:inline-flex items-center gap-1.5 text-2xs text-delivered">
               <Wifi size={13} />

@@ -23,9 +23,7 @@ export default function Dashboard() {
   const employees = useStore((s) => s.employees);
   const bays = useStore((s) => s.bays);
   const shifts = useStore((s) => s.shifts);
-  const waves = useStore((s) => s.waves);
   const activeShiftId = useStore((s) => s.activeShiftId);
-  const activeWaveId = useStore((s) => s.activeWaveId);
 
   const inMotion = products.filter((p) => p.status === 'transit' || p.status === 'out').length;
   const delivered = products.filter((p) => p.status === 'delivered').length;
@@ -41,7 +39,9 @@ export default function Dashboard() {
   );
 
   const activeShift = shifts.find((s) => s.id === activeShiftId);
-  const activeWave = waves.find((w) => w.id === activeWaveId);
+  const activeShiftStaff = activeShift
+    ? employees.filter((e) => e.shift === activeShift.name).length
+    : 0;
 
   const drivers = employees.filter((e) => e.role === 'driver');
   const onDuty = drivers.filter((e) => e.status === 'active').length;
@@ -98,7 +98,7 @@ export default function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader title="Current shift & wave" />
+          <CardHeader title="Current shift" />
           <div className="p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -108,19 +108,17 @@ export default function Dashboard() {
               <StatusPill status="active" />
             </div>
             <div className="border-t border-border pt-3 space-y-2">
-              {waves
-                .filter((w) => w.shiftId === activeShiftId)
-                .map((w) => (
-                  <div key={w.id} className="flex items-center justify-between">
-                    <span className="text-[13px] text-text-2">
-                      Wave {w.number} · {w.window}
-                    </span>
-                    <StatusPill status={w.status} />
-                  </div>
-                ))}
+              {shifts.map((s) => (
+                <div key={s.id} className="flex items-center justify-between">
+                  <span className="text-[13px] text-text-2">
+                    {s.name} · {s.window}
+                  </span>
+                  <StatusPill status={s.status} />
+                </div>
+              ))}
             </div>
             <div className="border-t border-border pt-3 text-2xs text-muted">
-              {activeWave?.assignedEmployeeIds.length ?? 0} staff assigned to the active wave
+              {activeShiftStaff} staff on the current shift
             </div>
           </div>
         </Card>
@@ -128,12 +126,11 @@ export default function Dashboard() {
 
       <div className="grid lg:grid-cols-3 gap-4 mt-4">
         <Card className="lg:col-span-2">
-          <CardHeader title="Bay occupancy" subtitle="Load against capacity" />
+          <CardHeader title="Bay stocks" subtitle="Items staged per bay" />
           <div className="p-4 space-y-3">
-            {bays.map((b) => {
-              const pct = b.capacity ? Math.round((b.loaded / b.capacity) * 100) : 0;
-              const full = pct >= 100;
-              return (
+            {(() => {
+              const maxStocks = Math.max(1, ...bays.map((b) => b.stocks));
+              return bays.map((b) => (
                 <div key={b.id} className="flex items-center gap-3">
                   <span className="font-mono text-2xs text-text-2 w-16 tnum">
                     {b.id.toUpperCase()}
@@ -142,17 +139,17 @@ export default function Dashboard() {
                     <div
                       className="h-full"
                       style={{
-                        width: `${Math.min(pct, 100)}%`,
-                        backgroundColor: full ? 'var(--transit)' : 'var(--accent)',
+                        width: `${Math.round((b.stocks / maxStocks) * 100)}%`,
+                        backgroundColor: 'var(--accent)',
                       }}
                     />
                   </div>
                   <span className="text-2xs text-text-2 tnum w-16 text-right">
-                    {b.loaded}/{b.capacity}
+                    {b.stocks} stk
                   </span>
                 </div>
-              );
-            })}
+              ));
+            })()}
           </div>
         </Card>
 

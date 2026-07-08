@@ -4,56 +4,115 @@ import { PageHeader } from '@/components/PageHeader';
 import { Card, CardHeader } from '@/components/Card';
 import { StatusPill } from '@/components/StatusPill';
 import { Button } from '@/components/Button';
-import { SidePanel } from '@/components/SidePanel';
 import { Modal } from '@/components/Modal';
 import { Field, Input, Select } from '@/components/Field';
 import { useStore } from '@/store/useStore';
-import type { Shift, WaveStatus } from '@/lib/types';
+import type { Shift, ShiftStatus } from '@/lib/types';
 
-const WAVE_STATUSES: WaveStatus[] = ['pending', 'active', 'completed'];
+const SHIFT_STATUSES: ShiftStatus[] = ['pending', 'active', 'completed'];
+const statusLabel = (s: ShiftStatus) =>
+  s === 'active' ? 'Running' : s === 'completed' ? 'Completed' : 'Pending';
 
 export default function ShiftManagement() {
   const shifts = useStore((s) => s.shifts);
-  const waves = useStore((s) => s.waves);
   const employees = useStore((s) => s.employees);
+  const routes = useStore((s) => s.routes);
   const labels = useStore((s) => s.moduleLabels);
   const activeShiftId = useStore((s) => s.activeShiftId);
-  const activeWaveId = useStore((s) => s.activeWaveId);
   const addShift = useStore((s) => s.addShift);
   const updateShift = useStore((s) => s.updateShift);
   const deleteShift = useStore((s) => s.deleteShift);
-  const updateWave = useStore((s) => s.updateWave);
   const setActive = useStore((s) => s.setActive);
+  const updateEmployee = useStore((s) => s.updateEmployee);
+  const updateRoute = useStore((s) => s.updateRoute);
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState<Shift | null>(null);
   const [form, setForm] = useState({ name: '', window: '' });
+  const [assignedIds, setAssignedIds] = useState<string[]>([]);
+  const [assignedRouteIds, setAssignedRouteIds] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<Shift | null>(null);
+
+  const activeEmployees = employees.filter((e) => e.status === 'active');
 
   const openCreate = () => {
     setEditing(null);
     setForm({ name: '', window: '' });
+    setAssignedIds([]);
+    setAssignedRouteIds([]);
     setPanelOpen(true);
   };
   const openEdit = (s: Shift) => {
     setEditing(s);
     setForm({ name: s.name, window: s.window });
+    setAssignedIds(
+      employees.filter((e) => e.shift === s.name && e.status === 'active').map((e) => e.id)
+    );
+    setAssignedRouteIds(routes.filter((r) => r.shiftId === s.id).map((r) => r.id));
     setPanelOpen(true);
   };
+  const toggleAssign = (id: string) => {
+    const willSelect = !assignedIds.includes(id);
+    setAssignedIds((ids) => (willSelect ? [...ids, id] : ids.filter((x) => x !== id)));
+    // A driver's own locations follow them: checking a driver ticks their locations too,
+    // unchecking removes them.
+    const driverRouteIds = routes.filter((r) => r.assignedDriverId === id).map((r) => r.id);
+    if (driverRouteIds.length) {
+      setAssignedRouteIds((ids) =>
+        willSelect
+          ? Array.from(new Set([...ids, ...driverRouteIds]))
+          : ids.filter((rid) => !driverRouteIds.includes(rid))
+      );
+    }
+  };
+  const toggleRoute = (id: string) =>
+    setAssignedRouteIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+
   const save = () => {
-    if (editing) updateShift(editing.id, form);
-    else addShift(form);
+    const name = form.name.trim();
+    const oldName = editing?.name;
+    let shiftId = editing?.id;
+    if (editing) {
+      updateShift(editing.id, { name, window: form.window });
+    } else {
+      addShift({ name, window: form.window });
+      // addShift appends, so the new shift is the last one — grab its id for assignments.
+      const created = useStore.getState().shifts;
+      shiftId = created[created.length - 1]?.id;
+    }
+
+    // Keep on-leave staff attached when a shift is renamed (active staff handled below).
+    if (editing && oldName && oldName !== name) {
+      employees.forEach((e) => {
+        if (e.shift === oldName && e.status !== 'active') updateEmployee(e.id, { shift: name });
+      });
+    }
+
+    // Apply the active-employee assignments: selected → this shift, deselected → unassigned.
+    activeEmployees.forEach((e) => {
+      const selected = assignedIds.includes(e.id);
+      const onThisShift = e.shift === name || (!!oldName && e.shift === oldName);
+      if (selected && e.shift !== name) updateEmployee(e.id, { shift: name });
+      else if (!selected && onThisShift) updateEmployee(e.id, { shift: '' });
+    });
+
+    // Apply the location assignments: selected → this shift, deselected → unassigned.
+    routes.forEach((r) => {
+      const selected = assignedRouteIds.includes(r.id);
+      if (selected && r.shiftId !== shiftId) updateRoute(r.id, { shiftId: shiftId ?? null });
+      else if (!selected && editing && r.shiftId === editing.id) updateRoute(r.id, { shiftId: null });
+    });
+
     setPanelOpen(false);
   };
 
   const activeShift = shifts.find((s) => s.id === activeShiftId);
-  const activeWave = waves.find((w) => w.id === activeWaveId);
 
   return (
     <div>
       <PageHeader
         title={labels.shifts}
-        description="Plan the day in shifts and waves, and set which wave is running now."
+        description="Plan the day in shifts and set which one is running now."
         action={
           <Button variant="primary" onClick={openCreate}>
             <Plus size={16} />
@@ -70,8 +129,8 @@ export default function ShiftManagement() {
             <div>
               <div className="text-2xs uppercase tracking-wide text-muted">Currently running</div>
               <div className="text-sm font-semibold text-text">
-                {activeShift?.name ?? '—'} · Wave {activeWave?.number ?? '—'}
-                <span className="text-text-2 font-normal"> · {activeWave?.window ?? ''}</span>
+                {activeShift?.name ?? '—'}
+                <span className="text-text-2 font-normal"> · {activeShift?.window ?? ''}</span>
               </div>
             </div>
           </div>
@@ -79,10 +138,7 @@ export default function ShiftManagement() {
             <Select
               aria-label="Set active shift"
               value={activeShiftId}
-              onChange={(e) => {
-                const first = waves.find((w) => w.shiftId === e.target.value);
-                setActive(e.target.value, first?.id ?? activeWaveId);
-              }}
+              onChange={(e) => setActive(e.target.value)}
               className="w-40"
             >
               {shifts.map((s) => (
@@ -91,27 +147,12 @@ export default function ShiftManagement() {
                 </option>
               ))}
             </Select>
-            <Select
-              aria-label="Set active wave"
-              value={activeWaveId}
-              onChange={(e) => setActive(activeShiftId, e.target.value)}
-              className="w-40"
-            >
-              {waves
-                .filter((w) => w.shiftId === activeShiftId)
-                .map((w) => (
-                  <option key={w.id} value={w.id}>
-                    Wave {w.number}
-                  </option>
-                ))}
-            </Select>
           </div>
         </div>
       </Card>
 
       <div className="grid lg:grid-cols-3 gap-4">
         {shifts.map((shift) => {
-          const shiftWaves = waves.filter((w) => w.shiftId === shift.id);
           const isActive = shift.id === activeShiftId;
           const shiftEmployees = employees.filter((e) => e.shift === shift.name);
           return (
@@ -144,34 +185,22 @@ export default function ShiftManagement() {
                 }
               />
               <div className="p-4 space-y-3">
-                <div>
-                  <div className="text-2xs uppercase tracking-wide text-muted mb-2">
-                    Waves ({shiftWaves.length})
-                  </div>
-                  <div className="space-y-2">
-                    {shiftWaves.length === 0 && (
-                      <p className="text-2xs text-muted">No waves in this shift.</p>
-                    )}
-                    {shiftWaves.map((w) => (
-                      <div key={w.id} className="flex items-center justify-between gap-2">
-                        <span className="text-[13px] text-text-2">
-                          Wave {w.number} · {w.window}
-                        </span>
-                        <Select
-                          aria-label={`Wave ${w.number} status`}
-                          value={w.status}
-                          onChange={(e) => updateWave(w.id, { status: e.target.value as WaveStatus })}
-                          className="h-7 w-28 text-2xs"
-                        >
-                          {WAVE_STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </Select>
-                      </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-2xs uppercase tracking-wide text-muted">Status</span>
+                  <Select
+                    aria-label={`${shift.name} status`}
+                    value={shift.status}
+                    onChange={(e) =>
+                      updateShift(shift.id, { status: e.target.value as ShiftStatus })
+                    }
+                    className="h-7 w-32 text-2xs"
+                  >
+                    {SHIFT_STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {statusLabel(s)}
+                      </option>
                     ))}
-                  </div>
+                  </Select>
                 </div>
 
                 <div className="border-t border-border pt-3">
@@ -196,11 +225,10 @@ export default function ShiftManagement() {
         })}
       </div>
 
-      <SidePanel
+      <Modal
         open={panelOpen}
         onClose={() => setPanelOpen(false)}
-        title={editing ? 'Edit shift' : 'New shift'}
-        subtitle={editing ? editing.name : 'Add a shift to the plan'}
+        title={editing ? `Edit shift · ${editing.name}` : 'New shift'}
         footer={
           <>
             <Button variant="ghost" onClick={() => setPanelOpen(false)}>
@@ -229,13 +257,92 @@ export default function ShiftManagement() {
               placeholder="e.g. 06:00 – 14:00"
             />
           </Field>
+
+          <Field
+            label={`Assign active staff (${assignedIds.length})`}
+            hint="Assigning an employee moves them off any other shift."
+          >
+            <div className="border border-border rounded-[3px] max-h-56 overflow-y-auto divide-y divide-border">
+              {activeEmployees.length === 0 ? (
+                <p className="px-3 py-3 text-2xs text-muted">No active employees to assign.</p>
+              ) : (
+                activeEmployees.map((e) => {
+                  const checked = assignedIds.includes(e.id);
+                  const elsewhere =
+                    !checked && e.shift && e.shift !== form.name.trim() && e.shift !== editing?.name;
+                  return (
+                    <label
+                      key={e.id}
+                      className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleAssign(e.id)}
+                        className="h-4 w-4 accent-accent shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] text-text truncate">{e.name}</div>
+                        <div className="text-2xs text-muted capitalize">
+                          {e.role} · <span className="font-mono">{e.vehicleNo}</span>
+                        </div>
+                      </div>
+                      {elsewhere && (
+                        <span className="text-2xs text-muted shrink-0">on {e.shift}</span>
+                      )}
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </Field>
+
+          <Field
+            label={`Assign locations (${assignedRouteIds.length})`}
+            hint="Locations ticked here run under this shift."
+          >
+            <div className="border border-border rounded-[3px] max-h-56 overflow-y-auto divide-y divide-border">
+              {routes.length === 0 ? (
+                <p className="px-3 py-3 text-2xs text-muted">No locations to assign.</p>
+              ) : (
+                [...routes]
+                  .sort((a, b) => a.order - b.order)
+                  .map((r) => {
+                    const checked = assignedRouteIds.includes(r.id);
+                    const otherShift = shifts.find((s) => s.id === r.shiftId);
+                    const elsewhere = !checked && otherShift && otherShift.id !== editing?.id;
+                    return (
+                      <label
+                        key={r.id}
+                        className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-2"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleRoute(r.id)}
+                          className="h-4 w-4 accent-accent shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13px] text-text truncate">{r.name}</div>
+                          <div className="text-2xs text-muted">{r.areaName}</div>
+                        </div>
+                        {elsewhere && (
+                          <span className="text-2xs text-muted shrink-0">on {otherShift.name}</span>
+                        )}
+                      </label>
+                    );
+                  })
+              )}
+            </div>
+          </Field>
+
           {!editing && (
             <p className="text-2xs text-muted">
-              New shifts start with no waves. Waves can be managed once the shift exists.
+              New shifts start as Pending. Set them Running from the shift card once live.
             </p>
           )}
         </div>
-      </SidePanel>
+      </Modal>
 
       <Modal
         open={!!confirmDelete}
@@ -259,8 +366,8 @@ export default function ShiftManagement() {
         }
       >
         <p className="text-[13px] text-text-2">
-          Delete the <span className="font-medium text-text">{confirmDelete?.name}</span> shift and
-          its waves? This cannot be undone.
+          Delete the <span className="font-medium text-text">{confirmDelete?.name}</span> shift? This
+          cannot be undone.
         </p>
       </Modal>
     </div>

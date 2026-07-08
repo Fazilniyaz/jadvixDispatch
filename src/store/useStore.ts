@@ -12,11 +12,11 @@ import type {
   ProductStatus,
   Route,
   Shift,
-  Wave,
+  VehicleTicket,
+  VehicleTicketStatus,
 } from '@/lib/types';
 import {
   activeShiftId as seedActiveShiftId,
-  activeWaveId as seedActiveWaveId,
   defaultModuleLabels,
   seedBays,
   seedEmployees,
@@ -25,7 +25,7 @@ import {
   seedProducts,
   seedRoutes,
   seedShifts,
-  seedWaves,
+  seedVehicleTickets,
 } from '@/data/seed';
 
 export type ThemePref = 'light' | 'dark' | 'system';
@@ -60,20 +60,20 @@ interface StoreState {
   products: Product[];
   employees: Employee[];
   shifts: Shift[];
-  waves: Wave[];
   bays: Bay[];
   routes: Route[];
   leaveRequests: LeaveRequest[];
   messages: Message[];
+  vehicleTickets: VehicleTicket[];
   moduleLabels: ModuleLabels;
   activeShiftId: string;
-  activeWaveId: string;
 
   // auth actions
   login: (email: string, password: string) => { ok: boolean; role?: string };
   logout: () => void;
   setTheme: (t: ThemePref) => void;
   toggleSidebar: () => void;
+  updateProfile: (patch: { name?: string; contactNo?: string }) => void;
 
   // products
   addProduct: (p: Omit<Product, 'id' | 'code'> & { code?: string }) => void;
@@ -83,18 +83,20 @@ interface StoreState {
   advanceProductStatus: (id: string, status: ProductStatus) => void;
 
   // employees
-  addEmployee: (e: Omit<Employee, 'id'>) => void;
+  addEmployee: (e: Omit<Employee, 'id'> & { id?: string }) => void;
   updateEmployee: (id: string, patch: Partial<Employee>) => void;
+  deleteEmployee: (id: string) => void;
 
-  // shifts / waves
-  addShift: (s: Omit<Shift, 'id' | 'waveIds'>) => void;
+  // shifts (each shift runs as a single wave)
+  addShift: (s: Omit<Shift, 'id' | 'status'>) => void;
   updateShift: (id: string, patch: Partial<Shift>) => void;
   deleteShift: (id: string) => void;
-  setActive: (shiftId: string, waveId: string) => void;
-  updateWave: (id: string, patch: Partial<Wave>) => void;
+  setActive: (shiftId: string) => void;
 
   // bays
+  addBay: (b: Omit<Bay, 'id'>) => void;
   updateBay: (id: string, patch: Partial<Bay>) => void;
+  deleteBay: (id: string) => void;
 
   // routes
   addRoute: (r: Omit<Route, 'id'>) => void;
@@ -105,6 +107,10 @@ interface StoreState {
   addLeaveRequest: (r: Omit<LeaveRequest, 'id' | 'status'>) => void;
   approveLeave: (id: string) => void;
   rejectLeave: (id: string) => void;
+
+  // vehicles
+  addVehicleTicket: (t: Omit<VehicleTicket, 'id' | 'status' | 'adminRemarks' | 'createdAt' | 'updatedAt'>) => void;
+  updateVehicleTicketStatus: (id: string, status: VehicleTicketStatus, adminRemarks?: string) => void;
 
   // messages
   sendMessage: (from: 'dispatch' | 'driver', authorId: string, text: string) => void;
@@ -121,14 +127,13 @@ const seedState = () => ({
   products: seedProducts,
   employees: seedEmployees,
   shifts: seedShifts,
-  waves: seedWaves,
   bays: seedBays,
   routes: seedRoutes,
   leaveRequests: seedLeaveRequests,
   messages: seedMessages,
+  vehicleTickets: seedVehicleTickets,
   moduleLabels: defaultModuleLabels,
   activeShiftId: seedActiveShiftId,
-  activeWaveId: seedActiveWaveId,
 });
 
 export const useStore = create<StoreState>()(
@@ -150,6 +155,27 @@ export const useStore = create<StoreState>()(
       logout: () => set({ user: null }),
       setTheme: (theme) => set({ theme }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      updateProfile: (patch) =>
+        set((s) => {
+          if (!s.user) return {};
+          const user = {
+            ...s.user,
+            ...(patch.name !== undefined ? { name: patch.name } : {}),
+          };
+          // Keep the linked employee record in sync for drivers.
+          const employees = s.user.employeeId
+            ? s.employees.map((e) =>
+                e.id === s.user!.employeeId
+                  ? {
+                      ...e,
+                      ...(patch.name !== undefined ? { name: patch.name } : {}),
+                      ...(patch.contactNo !== undefined ? { contactNo: patch.contactNo } : {}),
+                    }
+                  : e
+              )
+            : s.employees;
+          return { user, employees };
+        }),
 
       addProduct: (p) =>
         set((s) => ({
@@ -188,32 +214,54 @@ export const useStore = create<StoreState>()(
           }),
         })),
 
-      addEmployee: (e) => set((s) => ({ employees: [{ ...e, id: nid('emp') }, ...s.employees] })),
+      addEmployee: (e) =>
+        set((s) => {
+          const { id: customId, ...rest } = e;
+          const trimmed = customId?.trim();
+          // Use the custom id when supplied and free; otherwise auto-generate.
+          const id = trimmed && !s.employees.some((x) => x.id === trimmed) ? trimmed : nid('emp');
+          return { employees: [{ ...rest, id }, ...s.employees] };
+        }),
       updateEmployee: (id, patch) =>
         set((s) => ({
           employees: s.employees.map((e) => (e.id === id ? { ...e, ...patch } : e)),
         })),
+      deleteEmployee: (id) =>
+        set((s) => ({
+          employees: s.employees.filter((e) => e.id !== id),
+          // Clear references so nothing points at a removed employee.
+          products: s.products.map((p) =>
+            p.assignedEmployeeId === id ? { ...p, assignedEmployeeId: null } : p
+          ),
+        })),
 
       addShift: (sh) =>
-        set((s) => ({ shifts: [...s.shifts, { ...sh, id: nid('shift'), waveIds: [] }] })),
+        set((s) => ({ shifts: [...s.shifts, { ...sh, id: nid('shift'), status: 'pending' }] })),
       updateShift: (id, patch) =>
         set((s) => ({ shifts: s.shifts.map((sh) => (sh.id === id ? { ...sh, ...patch } : sh)) })),
       deleteShift: (id) =>
-        set((s) => ({
-          shifts: s.shifts.filter((sh) => sh.id !== id),
-          waves: s.waves.filter((w) => w.shiftId !== id),
-        })),
-      setActive: (activeShiftId, activeWaveId) => set({ activeShiftId, activeWaveId }),
-      updateWave: (id, patch) =>
-        set((s) => ({ waves: s.waves.map((w) => (w.id === id ? { ...w, ...patch } : w)) })),
+        set((s) => ({ shifts: s.shifts.filter((sh) => sh.id !== id) })),
+      setActive: (activeShiftId) => set({ activeShiftId }),
 
+      addBay: (b) => set((s) => ({ bays: [...s.bays, { ...b, id: nid('bay') }] })),
       updateBay: (id, patch) =>
         set((s) => ({ bays: s.bays.map((b) => (b.id === id ? { ...b, ...patch } : b)) })),
+      deleteBay: (id) =>
+        set((s) => ({
+          bays: s.bays.filter((b) => b.id !== id),
+          // Detach products staged in the removed bay.
+          products: s.products.map((p) => (p.bayId === id ? { ...p, bayId: null } : p)),
+        })),
 
       addRoute: (r) => set((s) => ({ routes: [...s.routes, { ...r, id: nid('route') }] })),
       updateRoute: (id, patch) =>
         set((s) => ({ routes: s.routes.map((r) => (r.id === id ? { ...r, ...patch } : r)) })),
-      deleteRoute: (id) => set((s) => ({ routes: s.routes.filter((r) => r.id !== id) })),
+      deleteRoute: (id) =>
+        set((s) => ({
+          routes: s.routes.filter((r) => r.id !== id),
+          // Detach products pointing at the removed location.
+          products: s.products.map((p) => (p.routeId === id ? { ...p, routeId: null } : p)),
+        })),
 
       addLeaveRequest: (r) =>
         set((s) => ({
@@ -238,6 +286,34 @@ export const useStore = create<StoreState>()(
           ),
         })),
 
+      addVehicleTicket: (t) =>
+        set((s) => ({
+          vehicleTickets: [
+            {
+              ...t,
+              id: nid('vt'),
+              status: 'submitted',
+              adminRemarks: '',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            ...s.vehicleTickets,
+          ],
+        })),
+      updateVehicleTicketStatus: (id, status, adminRemarks) =>
+        set((s) => ({
+          vehicleTickets: s.vehicleTickets.map((vt) =>
+            vt.id === id
+              ? {
+                  ...vt,
+                  status,
+                  adminRemarks: adminRemarks !== undefined ? adminRemarks : vt.adminRemarks,
+                  updatedAt: new Date().toISOString(),
+                }
+              : vt
+          ),
+        })),
+
       sendMessage: (from, authorId, text) =>
         set((s) => ({
           messages: [
@@ -254,6 +330,9 @@ export const useStore = create<StoreState>()(
     }),
     {
       name: 'jadvix-dispatch',
+      // Bumped on model changes: wave→shift (2), bay stocks + single-location routes (3),
+      // employee errorCount for Stats (4), vehicle tickets (5).
+      version: 5,
     }
   )
 );
