@@ -18,6 +18,7 @@ import type {
 import {
   activeShiftId as seedActiveShiftId,
   defaultModuleLabels,
+  defaultProductTypes,
   seedBays,
   seedEmployees,
   seedLeaveRequests,
@@ -65,6 +66,7 @@ interface StoreState {
   leaveRequests: LeaveRequest[];
   messages: Message[];
   vehicleTickets: VehicleTicket[];
+  productTypes: string[];
   moduleLabels: ModuleLabels;
   activeShiftId: string;
 
@@ -81,6 +83,8 @@ interface StoreState {
   deleteProduct: (id: string) => void;
   assignProduct: (id: string, employeeId: string | null) => void;
   advanceProductStatus: (id: string, status: ProductStatus) => void;
+  addProductType: (name: string) => void;
+  deleteProductType: (name: string) => void;
 
   // employees
   addEmployee: (e: Omit<Employee, 'id'> & { id?: string }) => void;
@@ -132,6 +136,7 @@ const seedState = () => ({
   leaveRequests: seedLeaveRequests,
   messages: seedMessages,
   vehicleTickets: seedVehicleTickets,
+  productTypes: [...defaultProductTypes],
   moduleLabels: defaultModuleLabels,
   activeShiftId: seedActiveShiftId,
 });
@@ -194,6 +199,24 @@ export const useStore = create<StoreState>()(
         })),
       deleteProduct: (id) =>
         set((s) => ({ products: s.products.filter((p) => p.id !== id) })),
+      addProductType: (name) =>
+        set((s) => {
+          const trimmed = name.trim();
+          if (!trimmed || s.productTypes.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
+            return {};
+          }
+          return { productTypes: [...s.productTypes, trimmed] };
+        }),
+      deleteProductType: (name) =>
+        set((s) => {
+          const productTypes = s.productTypes.filter((t) => t !== name);
+          // Reassign any products using the removed type to a still-valid fallback.
+          const fallback = productTypes.includes('Standard') ? 'Standard' : productTypes[0] ?? '';
+          const products = s.products.map((p) =>
+            p.type === name ? { ...p, type: fallback } : p
+          );
+          return { productTypes, products };
+        }),
       assignProduct: (id, employeeId) =>
         set((s) => ({
           products: s.products.map((p) =>
@@ -331,8 +354,9 @@ export const useStore = create<StoreState>()(
     {
       name: 'jadvix-dispatch',
       // Bumped on model changes: wave→shift (2), bay stocks + single-location routes (3),
-      // employee errorCount for Stats (4), vehicle tickets (5).
-      version: 5,
+      // employee errorCount for Stats (4), vehicle tickets (5),
+      // custom product types + bay date (6).
+      version: 6,
     }
   )
 );

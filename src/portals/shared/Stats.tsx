@@ -34,6 +34,10 @@ const tooltipStyle = {
 const firstName = (n: string) => n.split(' ')[0];
 const rate = (ok: number, err: number) => (ok + err ? Math.round((ok / (ok + err)) * 100) : 0);
 
+// Podium colours for 1st / 2nd / 3rd place.
+const MEDAL_COLORS = ['#E8B10A', '#9AA4AF', '#C67B3C'] as const;
+const MEDAL_NAMES = ['Gold', 'Silver', 'Bronze'] as const;
+
 export default function Stats() {
   const employees = useStore((s) => s.employees);
   const products = useStore((s) => s.products);
@@ -154,12 +158,8 @@ export default function Stats() {
               <Card key={d.id} className={cn('p-4', isMe && 'border-accent')}>
                 <div className="flex items-center justify-between">
                   <span
-                    className={cn(
-                      'grid h-8 w-8 place-items-center rounded-[4px] font-display text-sm font-semibold tnum',
-                      i === 0
-                        ? 'bg-accent text-white'
-                        : 'bg-surface-2 border border-border text-text-2'
-                    )}
+                    className="grid h-8 w-8 place-items-center rounded-[4px] font-display text-sm font-semibold tnum text-white"
+                    style={{ backgroundColor: MEDAL_COLORS[i] }}
                   >
                     {i + 1}
                   </span>
@@ -169,10 +169,10 @@ export default function Stats() {
                         You
                       </span>
                     )}
-                    <Trophy
-                      size={16}
-                      className={i === 0 ? 'text-accent' : 'text-muted'}
-                    />
+                    <span className="text-2xs font-medium" style={{ color: MEDAL_COLORS[i] }}>
+                      {MEDAL_NAMES[i]}
+                    </span>
+                    <Trophy size={16} style={{ color: MEDAL_COLORS[i] }} />
                   </div>
                 </div>
                 <div className="mt-3 text-sm font-semibold text-text truncate">{d.name}</div>
@@ -423,12 +423,9 @@ export default function Stats() {
                   <span
                     className={cn(
                       'grid h-7 w-7 place-items-center rounded-[3px] text-2xs font-semibold tnum shrink-0',
-                      i === 0
-                        ? 'bg-accent text-white'
-                        : i < 3
-                          ? 'border border-accent text-accent'
-                          : 'border border-border text-text-2'
+                      i > 2 && 'border border-border text-text-2'
                     )}
+                    style={i < 3 ? { backgroundColor: MEDAL_COLORS[i], color: '#fff' } : undefined}
                   >
                     {i + 1}
                   </span>

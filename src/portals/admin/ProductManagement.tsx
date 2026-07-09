@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronRight, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { ChevronRight, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { DataTable, type Column } from '@/components/DataTable';
@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils';
 import { useStore } from '@/store/useStore';
 import type { Product, ProductStatus, ProductType } from '@/lib/types';
 
-const TYPES: ProductType[] = ['Fragile', 'Baked', 'Packed', 'Frozen', 'Standard'];
 const STATUSES: ProductStatus[] = ['scheduled', 'picked', 'transit', 'out', 'delivered', 'exception'];
 
 type FormState = Omit<Product, 'id'>;
@@ -46,14 +45,12 @@ export default function ProductManagement() {
   const bays = useStore((s) => s.bays);
   const routes = useStore((s) => s.routes);
   const labels = useStore((s) => s.moduleLabels);
+  const productTypes = useStore((s) => s.productTypes);
   const addProduct = useStore((s) => s.addProduct);
   const updateProduct = useStore((s) => s.updateProduct);
   const deleteProduct = useStore((s) => s.deleteProduct);
-
-  const empName = (id: string | null) => employees.find((e) => e.id === id)?.name ?? '—';
-  const shiftName = (id: string | null) => shifts.find((s) => s.id === id)?.name ?? '—';
-  const bayLabel = (id: string | null) => (id ? id.toUpperCase() : '—');
-  const routeName = (id: string | null) => routes.find((r) => r.id === id)?.name ?? '—';
+  const addProductType = useStore((s) => s.addProductType);
+  const deleteProductType = useStore((s) => s.deleteProductType);
 
   const [search, setSearch] = useState('');
   const [fType, setFType] = useState('all');
@@ -64,6 +61,10 @@ export default function ProductManagement() {
   // Create flow (centered modal).
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<FormState>(emptyForm());
+
+  // Add product type flow.
+  const [typeModalOpen, setTypeModalOpen] = useState(false);
+  const [newType, setNewType] = useState('');
 
   // Inline expand / edit flow.
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -92,6 +93,28 @@ export default function ProductManagement() {
   const saveCreate = () => {
     addProduct(createForm);
     setCreateOpen(false);
+  };
+
+  const typeExists = productTypes.some((t) => t.toLowerCase() === newType.trim().toLowerCase());
+
+  const saveType = () => {
+    const trimmed = newType.trim();
+    if (!trimmed || typeExists) return;
+    addProductType(trimmed);
+    // Preselect the freshly added type for the product being created.
+    setCreateForm((f) => ({ ...f, type: trimmed }));
+    setNewType('');
+    setTypeModalOpen(false);
+  };
+
+  const removeType = (t: string) => {
+    const fallback = productTypes.filter((x) => x !== t).includes('Standard')
+      ? 'Standard'
+      : productTypes.filter((x) => x !== t)[0] ?? '';
+    deleteProductType(t);
+    // Keep local filter / create form in sync with the removed type.
+    if (fType === t) setFType('all');
+    setCreateForm((f) => (f.type === t ? { ...f, type: fallback } : f));
   };
 
   const toggleRow = (p: Product) => {
@@ -133,37 +156,7 @@ export default function ProductManagement() {
       render: (p) => <span className="font-medium text-text">{p.name}</span>,
     },
     { key: 'type', header: 'Type', render: (p) => <span className="text-text-2">{p.type}</span> },
-    {
-      key: 'emp',
-      header: 'Assigned',
-      render: (p) => <span className="text-text-2">{empName(p.assignedEmployeeId)}</span>,
-    },
-    {
-      key: 'shift',
-      header: 'Shift',
-      render: (p) => <span className="text-text-2">{shiftName(p.shiftId)}</span>,
-    },
-    {
-      key: 'bay',
-      header: 'Bay',
-      render: (p) => <span className="font-mono text-2xs text-text-2">{bayLabel(p.bayId)}</span>,
-    },
-    {
-      key: 'route',
-      header: 'Location',
-      render: (p) => <span className="text-text-2">{routeName(p.routeId)}</span>,
-    },
-    {
-      key: 'delivery',
-      header: 'Delivery',
-      render: (p) => (
-        <span className="text-text-2">
-          {p.deliveryStatus === 'delivered' ? 'Done' : p.deliveryStatus === 'failed' ? 'Failed' : 'Pending'}
-        </span>
-      ),
-    },
     { key: 'status', header: 'Status', render: (p) => <StatusPill status={p.status} /> },
-    { key: 'eta', header: 'ETA', render: (p) => <span className="text-text-2 tnum">{p.eta || '—'}</span> },
   ];
 
   // Shared field grid for the inline editor.
@@ -196,7 +189,7 @@ export default function ProductManagement() {
           value={form.type}
           onChange={(e) => setForm({ ...form, type: e.target.value as ProductType })}
         >
-          {TYPES.map((t) => (
+          {productTypes.map((t) => (
             <option key={t} value={t}>
               {t}
             </option>
@@ -328,10 +321,16 @@ export default function ProductManagement() {
         title={labels.products}
         description="Create, assign and track every product from arrival to delivery."
         action={
-          <Button variant="primary" onClick={openCreate}>
-            <Plus size={16} />
-            New product
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setTypeModalOpen(true)}>
+              <Plus size={16} />
+              Add product type
+            </Button>
+            <Button variant="primary" onClick={openCreate}>
+              <Plus size={16} />
+              New product
+            </Button>
+          </div>
         }
       />
 
@@ -349,7 +348,7 @@ export default function ProductManagement() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <Select value={fType} onChange={(e) => setFType(e.target.value)} aria-label="Filter by type">
               <option value="all">All types</option>
-              {TYPES.map((t) => (
+              {productTypes.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
@@ -414,6 +413,83 @@ export default function ProductManagement() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {fields(createForm, setCreateForm, 'pc')}
         </div>
+      </Modal>
+
+      {/* Add product type — centered modal */}
+      <Modal
+        open={typeModalOpen}
+        onClose={() => {
+          setTypeModalOpen(false);
+          setNewType('');
+        }}
+        title="Add product type"
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setTypeModalOpen(false);
+                setNewType('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={saveType} disabled={!newType.trim() || typeExists}>
+              Add type
+            </Button>
+          </>
+        }
+      >
+        <Field label="Type name" htmlFor="new-product-type" hint="Becomes available in the Type dropdown">
+          <Input
+            id="new-product-type"
+            value={newType}
+            onChange={(e) => setNewType(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') saveType();
+            }}
+            placeholder="e.g. Hazardous"
+            autoFocus
+          />
+          {!!newType.trim() && typeExists && (
+            <p className="text-2xs text-exception mt-1">This type already exists.</p>
+          )}
+        </Field>
+        {productTypes.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-2xs uppercase tracking-wide text-muted mb-2">Existing types</h4>
+            <div className="flex flex-wrap gap-1.5">
+              {productTypes.map((t) => {
+                const inUse = products.filter((p) => p.type === t).length;
+                const last = productTypes.length === 1;
+                return (
+                  <span
+                    key={t}
+                    className="inline-flex items-center gap-1 text-2xs border border-border rounded-[3px] pl-1.5 pr-1 py-0.5 text-text-2"
+                  >
+                    {t}
+                    <button
+                      type="button"
+                      onClick={() => removeType(t)}
+                      disabled={last}
+                      aria-label={`Delete ${t} type`}
+                      title={
+                        last
+                          ? 'At least one type must remain'
+                          : inUse
+                            ? `${inUse} product(s) will move to Standard`
+                            : `Delete ${t}`
+                      }
+                      className="grid place-items-center h-4 w-4 rounded-[2px] text-muted hover:text-exception hover:bg-surface-2 disabled:opacity-40 disabled:hover:text-muted disabled:hover:bg-transparent"
+                    >
+                      <X size={11} />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Delete confirm */}

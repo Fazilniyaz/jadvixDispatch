@@ -24,6 +24,9 @@ export const defaultModuleLabels: ModuleLabels = {
   settings: 'Settings',
 };
 
+// ---- Product types (extendable from Product Management) ----
+export const defaultProductTypes: string[] = ['Fragile', 'Baked', 'Packed', 'Frozen', 'Standard'];
+
 // ---- Employees ----
 // emp-01 is the seeded driver behind driver@gmail.com.
 export const seedEmployees: Employee[] = [
@@ -165,12 +168,12 @@ export const activeShiftId = 'shift-01';
 
 // ---- Bays ----
 export const seedBays: Bay[] = [
-  { id: 'bay-01', shiftId: 'shift-01', assignedDriverId: 'emp-01', vehicleNo: 'TN-09-BX-4471', stocks: 18 },
-  { id: 'bay-02', shiftId: 'shift-01', assignedDriverId: 'emp-02', vehicleNo: 'TN-07-CH-2093', stocks: 24 },
-  { id: 'bay-03', shiftId: 'shift-02', assignedDriverId: 'emp-03', vehicleNo: 'LK21 XJV', stocks: 9 },
-  { id: 'bay-04', shiftId: 'shift-01', assignedDriverId: 'emp-07', vehicleNo: 'TN-11-DK-1207', stocks: 14 },
-  { id: 'bay-05', shiftId: 'shift-02', assignedDriverId: null, vehicleNo: '—', stocks: 0 },
-  { id: 'bay-06', shiftId: 'shift-03', assignedDriverId: 'emp-05', vehicleNo: 'TN-01-AZ-8890', stocks: 6 },
+  { id: 'bay-01', shiftId: 'shift-01', assignedDriverId: 'emp-01', vehicleNo: 'TN-09-BX-4471', stocks: 18, date: '2026-07-06' },
+  { id: 'bay-02', shiftId: 'shift-01', assignedDriverId: 'emp-02', vehicleNo: 'TN-07-CH-2093', stocks: 24, date: '2026-07-06' },
+  { id: 'bay-03', shiftId: 'shift-02', assignedDriverId: 'emp-03', vehicleNo: 'LK21 XJV', stocks: 9, date: '2026-07-06' },
+  { id: 'bay-04', shiftId: 'shift-01', assignedDriverId: 'emp-07', vehicleNo: 'TN-11-DK-1207', stocks: 14, date: '2026-07-06' },
+  { id: 'bay-05', shiftId: 'shift-02', assignedDriverId: null, vehicleNo: '—', stocks: 0, date: '2026-07-06' },
+  { id: 'bay-06', shiftId: 'shift-03', assignedDriverId: 'emp-05', vehicleNo: 'TN-01-AZ-8890', stocks: 6, date: '2026-07-06' },
 ];
 
 // ---- Locations (one delivery point per location, grouped by shift) ----

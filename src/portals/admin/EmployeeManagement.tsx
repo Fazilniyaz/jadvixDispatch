@@ -105,6 +105,12 @@ export default function EmployeeManagement() {
     }
   };
 
+  // Explicit Edit button: always open the row's inline editor.
+  const openEdit = (e: Employee) => {
+    setExpandedId(e.id);
+    setEditForm(formFrom(e));
+  };
+
   const saveEdit = () => {
     if (!expandedId) return;
     updateEmployee(expandedId, {
@@ -164,6 +170,38 @@ export default function EmployeeManagement() {
       headerClassName: 'text-right',
       className: 'text-right',
     },
+    {
+      key: 'actions',
+      header: 'Actions',
+      render: (e) => (
+        <div className="flex items-center justify-end gap-1.5">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(ev) => {
+              ev.stopPropagation();
+              openEdit(e);
+            }}
+          >
+            <Pencil size={14} />
+            Edit
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            aria-label={`Delete ${e.name}`}
+            onClick={(ev) => {
+              ev.stopPropagation();
+              setConfirmDelete(e);
+            }}
+          >
+            <Trash2 size={14} />
+          </Button>
+        </div>
+      ),
+      headerClassName: 'text-right',
+      className: 'text-right',
+    },
   ];
 
   const renderExpanded = (e: Employee) => {
@@ -209,15 +247,14 @@ export default function EmployeeManagement() {
                   onChange={(ev) => setEditForm({ ...editForm, contactNo: ev.target.value })}
                 />
               </Field>
-              <Field label="Role" htmlFor={`e-role-${e.id}`}>
-                <Select
+              <Field label="Role" htmlFor={`e-role-${e.id}`} hint="Pick a preset or type a custom role">
+                <Input
                   id={`e-role-${e.id}`}
+                  list="employee-role-options"
                   value={editForm.role}
-                  onChange={(ev) => setEditForm({ ...editForm, role: ev.target.value as EmployeeRole })}
-                >
-                  <option value="driver">Driver</option>
-                  <option value="dispatcher">Dispatcher</option>
-                </Select>
+                  onChange={(ev) => setEditForm({ ...editForm, role: ev.target.value })}
+                  placeholder="e.g. Supervisor"
+                />
               </Field>
               <Field label="Shift" htmlFor={`e-shift-${e.id}`}>
                 <Select
@@ -324,6 +361,11 @@ export default function EmployeeManagement() {
 
   return (
     <div>
+      {/* Role presets — the input still accepts any custom text. */}
+      <datalist id="employee-role-options">
+        <option value="driver" />
+        <option value="dispatcher" />
+      </datalist>
       <PageHeader
         title={labels.employees}
         description="Drivers and dispatchers, their vehicles, shifts and delivery history."
@@ -419,15 +461,14 @@ export default function EmployeeManagement() {
             </Field>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Role" htmlFor="c-role">
-              <Select
+            <Field label="Role" htmlFor="c-role" hint="Preset or custom">
+              <Input
                 id="c-role"
+                list="employee-role-options"
                 value={createForm.role}
-                onChange={(e) => setCreateForm({ ...createForm, role: e.target.value as EmployeeRole })}
-              >
-                <option value="driver">Driver</option>
-                <option value="dispatcher">Dispatcher</option>
-              </Select>
+                onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
+                placeholder="e.g. Supervisor"
+              />
             </Field>
             <Field label="Shift" htmlFor="c-shift">
               <Select

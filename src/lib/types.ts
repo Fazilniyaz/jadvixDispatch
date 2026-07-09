@@ -2,7 +2,8 @@
 
 export type Role = 'admin' | 'driver';
 
-export type ProductType = 'Fragile' | 'Baked' | 'Packed' | 'Frozen' | 'Standard';
+// Built-in types plus any custom types added from Product Management.
+export type ProductType = 'Fragile' | 'Baked' | 'Packed' | 'Frozen' | 'Standard' | (string & {});
 export type DeliveryStatus = 'pending' | 'delivered' | 'failed';
 export type ProductStatus =
   | 'scheduled'
@@ -27,7 +28,8 @@ export interface Product {
   eta: string;
 }
 
-export type EmployeeRole = 'driver' | 'dispatcher';
+// Built-in roles plus any custom role label entered when creating an employee.
+export type EmployeeRole = 'driver' | 'dispatcher' | (string & {});
 export type EmployeeStatus = 'active' | 'leave';
 
 export interface DeliveryRecord {
@@ -67,6 +69,7 @@ export interface Bay {
   assignedDriverId: string | null;
   vehicleNo: string;
   stocks: number; // number of items staged in the bay
+  date: string; // yyyy-mm-dd the bay was staged for
 }
 
 // A single delivery point (area + coordinates + ETA).

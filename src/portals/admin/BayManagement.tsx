@@ -14,13 +14,17 @@ type FormState = {
   assignedDriverId: string;
   vehicleNo: string;
   stocks: number;
+  date: string;
 };
+
+const today = () => new Date().toISOString().slice(0, 10);
 
 const emptyForm = (shiftId: string): FormState => ({
   shiftId,
   assignedDriverId: '',
   vehicleNo: '',
   stocks: 0,
+  date: today(),
 });
 
 export default function BayManagement() {
@@ -65,6 +69,7 @@ export default function BayManagement() {
       assignedDriverId: b.assignedDriverId ?? '',
       vehicleNo: b.vehicleNo,
       stocks: b.stocks,
+      date: b.date || today(),
     });
     setPanelOpen(true);
   };
@@ -76,6 +81,7 @@ export default function BayManagement() {
       assignedDriverId: form.assignedDriverId || null,
       vehicleNo: form.assignedDriverId ? driver?.vehicleNo ?? form.vehicleNo : form.vehicleNo,
       stocks: Number(form.stocks) || 0,
+      date: form.date || today(),
     };
     if (editing) updateBay(editing.id, patch);
     else addBay(patch);
@@ -235,6 +241,10 @@ export default function BayManagement() {
                             <span className="text-muted">Vehicle</span>
                             <span className="font-mono text-2xs text-text-2">{b.vehicleNo}</span>
                           </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted">Date</span>
+                            <span className="text-text-2 tnum">{b.date || '—'}</span>
+                          </div>
                         </div>
 
                         <div className="mt-4 flex items-center gap-2">
@@ -309,6 +319,14 @@ export default function BayManagement() {
                 </option>
               ))}
             </Select>
+          </Field>
+          <Field label="Date" htmlFor="b-date">
+            <Input
+              id="b-date"
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+            />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Vehicle no" htmlFor="b-vehicle">
