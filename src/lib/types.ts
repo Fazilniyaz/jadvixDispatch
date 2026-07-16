@@ -18,6 +18,7 @@ export interface Product {
   code: string; // mono product code
   name: string;
   type: ProductType;
+  stocks: number; // units of this product on hand
   assignedEmployeeId: string | null;
   arrivalInfo: string; // how / when received
   shiftId: string | null;
@@ -56,16 +57,24 @@ export interface Employee {
 // Each shift runs as a single wave, so its status lives on the shift itself.
 export type ShiftStatus = 'pending' | 'active' | 'completed';
 
+// A product staged on a shift with the stock allocated to it for that shift.
+export interface ShiftProduct {
+  productId: string;
+  stock: number;
+}
+
 export interface Shift {
   id: string;
   name: string; // Morning | Afternoon | Night
   window: string;
   status: ShiftStatus;
+  products: ShiftProduct[]; // products + stocks running under this shift
 }
 
 export interface Bay {
   id: string;
-  shiftId: string | null; // the shift this bay runs under
+  number: number; // human-facing bay number (1..maxBays), unique
+  shiftId: string | null; // the shift this bay runs under — everything else derives from it
   assignedDriverId: string | null;
   vehicleNo: string;
   stocks: number; // number of items staged in the bay

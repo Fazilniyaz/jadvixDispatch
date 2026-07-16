@@ -7,7 +7,7 @@ import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { Field, Input, Select } from '@/components/Field';
 import { useStore } from '@/store/useStore';
-import type { Shift, ShiftStatus } from '@/lib/types';
+import type { Shift, ShiftProduct, ShiftStatus } from '@/lib/types';
 
 const SHIFT_STATUSES: ShiftStatus[] = ['pending', 'active', 'completed'];
 const statusLabel = (s: ShiftStatus) =>
@@ -17,6 +17,7 @@ export default function ShiftManagement() {
   const shifts = useStore((s) => s.shifts);
   const employees = useStore((s) => s.employees);
   const routes = useStore((s) => s.routes);
+  const products = useStore((s) => s.products);
   const labels = useStore((s) => s.moduleLabels);
   const activeShiftId = useStore((s) => s.activeShiftId);
   const addShift = useStore((s) => s.addShift);
@@ -31,15 +32,22 @@ export default function ShiftManagement() {
   const [form, setForm] = useState({ name: '', window: '' });
   const [assignedIds, setAssignedIds] = useState<string[]>([]);
   const [assignedRouteIds, setAssignedRouteIds] = useState<string[]>([]);
+  const [assignedProducts, setAssignedProducts] = useState<ShiftProduct[]>([]);
   const [confirmDelete, setConfirmDelete] = useState<Shift | null>(null);
 
   const activeEmployees = employees.filter((e) => e.status === 'active');
+
+  // An employee's location comes from Location Management (route.assignedDriverId).
+  // Shown here read-only so admins can see who covers where before assigning.
+  const locationsFor = (empId: string) =>
+    routes.filter((r) => r.assignedDriverId === empId).map((r) => r.name);
 
   const openCreate = () => {
     setEditing(null);
     setForm({ name: '', window: '' });
     setAssignedIds([]);
     setAssignedRouteIds([]);
+    setAssignedProducts([]);
     setPanelOpen(true);
   };
   const openEdit = (s: Shift) => {
@@ -49,33 +57,37 @@ export default function ShiftManagement() {
       employees.filter((e) => e.shift === s.name && e.status === 'active').map((e) => e.id)
     );
     setAssignedRouteIds(routes.filter((r) => r.shiftId === s.id).map((r) => r.id));
+    setAssignedProducts(s.products.map((p) => ({ ...p })));
     setPanelOpen(true);
   };
-  const toggleAssign = (id: string) => {
-    const willSelect = !assignedIds.includes(id);
-    setAssignedIds((ids) => (willSelect ? [...ids, id] : ids.filter((x) => x !== id)));
-    // A driver's own locations follow them: checking a driver ticks their locations too,
-    // unchecking removes them.
-    const driverRouteIds = routes.filter((r) => r.assignedDriverId === id).map((r) => r.id);
-    if (driverRouteIds.length) {
-      setAssignedRouteIds((ids) =>
-        willSelect
-          ? Array.from(new Set([...ids, ...driverRouteIds]))
-          : ids.filter((rid) => !driverRouteIds.includes(rid))
-      );
-    }
-  };
+  // Employees and locations are independent: ticking one never auto-ticks the other.
+  const toggleAssign = (id: string) =>
+    setAssignedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
   const toggleRoute = (id: string) =>
     setAssignedRouteIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+
+  // Products carry a per-shift stock. Ticking one defaults its stock to the
+  // product's own on-hand count; it can then be adjusted for this shift.
+  const productChecked = (id: string) => assignedProducts.some((p) => p.productId === id);
+  const toggleProduct = (id: string, defaultStock: number) =>
+    setAssignedProducts((list) =>
+      list.some((p) => p.productId === id)
+        ? list.filter((p) => p.productId !== id)
+        : [...list, { productId: id, stock: defaultStock }]
+    );
+  const setProductStock = (id: string, stock: number) =>
+    setAssignedProducts((list) =>
+      list.map((p) => (p.productId === id ? { ...p, stock: Math.max(0, stock) } : p))
+    );
 
   const save = () => {
     const name = form.name.trim();
     const oldName = editing?.name;
     let shiftId = editing?.id;
     if (editing) {
-      updateShift(editing.id, { name, window: form.window });
+      updateShift(editing.id, { name, window: form.window, products: assignedProducts });
     } else {
-      addShift({ name, window: form.window });
+      addShift({ name, window: form.window, products: assignedProducts });
       // addShift appends, so the new shift is the last one — grab its id for assignments.
       const created = useStore.getState().shifts;
       shiftId = created[created.length - 1]?.id;
@@ -155,6 +167,8 @@ export default function ShiftManagement() {
         {shifts.map((shift) => {
           const isActive = shift.id === activeShiftId;
           const shiftEmployees = employees.filter((e) => e.shift === shift.name);
+          const shiftRoutes = routes.filter((r) => r.shiftId === shift.id);
+          const totalStock = shift.products.reduce((sum, p) => sum + p.stock, 0);
           return (
             <Card key={shift.id}>
               <CardHeader
@@ -185,6 +199,11 @@ export default function ShiftManagement() {
                 }
               />
               <div className="p-4 space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <ShiftMetric label="Staff" value={shiftEmployees.length} />
+                  <ShiftMetric label="Locations" value={shiftRoutes.length} />
+                  <ShiftMetric label="Stock" value={totalStock} sub={`${shift.products.length} prod`} />
+                </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-2xs uppercase tracking-wide text-muted">Status</span>
                   <Select
@@ -260,7 +279,7 @@ export default function ShiftManagement() {
 
           <Field
             label={`Assign active staff (${assignedIds.length})`}
-            hint="Assigning an employee moves them off any other shift."
+            hint="Each employee's location comes from Location Management — change it there."
           >
             <div className="border border-border rounded-[3px] max-h-56 overflow-y-auto divide-y divide-border">
               {activeEmployees.length === 0 ? (
@@ -270,6 +289,7 @@ export default function ShiftManagement() {
                   const checked = assignedIds.includes(e.id);
                   const elsewhere =
                     !checked && e.shift && e.shift !== form.name.trim() && e.shift !== editing?.name;
+                  const locs = locationsFor(e.id);
                   return (
                     <label
                       key={e.id}
@@ -282,7 +302,14 @@ export default function ShiftManagement() {
                         className="h-4 w-4 accent-accent shrink-0"
                       />
                       <div className="min-w-0 flex-1">
-                        <div className="text-[13px] text-text truncate">{e.name}</div>
+                        <div className="text-[13px] text-text truncate">
+                          {e.name}
+                          {locs.length > 0 ? (
+                            <span className="text-muted font-normal"> — {locs.join(', ')}</span>
+                          ) : (
+                            <span className="text-muted font-normal"> — no location</span>
+                          )}
+                        </div>
                         <div className="text-2xs text-muted capitalize">
                           {e.role} · <span className="font-mono">{e.vehicleNo}</span>
                         </div>
@@ -336,6 +363,56 @@ export default function ShiftManagement() {
             </div>
           </Field>
 
+          <Field
+            label={`Assign products & stock (${assignedProducts.length})`}
+            hint="Products ticked here run under this shift, each with its own stock."
+          >
+            <div className="border border-border rounded-[3px] max-h-64 overflow-y-auto divide-y divide-border">
+              {products.length === 0 ? (
+                <p className="px-3 py-3 text-2xs text-muted">No products to assign.</p>
+              ) : (
+                products.map((p) => {
+                  const checked = productChecked(p.id);
+                  const entry = assignedProducts.find((x) => x.productId === p.id);
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-3 px-3 py-2 hover:bg-surface-2"
+                    >
+                      <label className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleProduct(p.id, p.stocks)}
+                          className="h-4 w-4 accent-accent shrink-0"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[13px] text-text truncate">{p.name}</div>
+                          <div className="text-2xs text-muted">
+                            <span className="font-mono">{p.code}</span> · {p.type}
+                          </div>
+                        </div>
+                      </label>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Input
+                          type="number"
+                          min={0}
+                          aria-label={`${p.name} stock for this shift`}
+                          value={entry ? entry.stock : ''}
+                          disabled={!checked}
+                          onChange={(e) => setProductStock(p.id, Number(e.target.value) || 0)}
+                          className="h-7 w-20 text-2xs tnum disabled:opacity-40"
+                          placeholder={String(p.stocks)}
+                        />
+                        <span className="text-2xs text-muted w-8">stk</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </Field>
+
           {!editing && (
             <p className="text-2xs text-muted">
               New shifts start as Pending. Set them Running from the shift card once live.
@@ -370,6 +447,18 @@ export default function ShiftManagement() {
           cannot be undone.
         </p>
       </Modal>
+    </div>
+  );
+}
+
+function ShiftMetric({ label, value, sub }: { label: string; value: number; sub?: string }) {
+  return (
+    <div className="border border-border rounded-[3px] bg-surface px-2.5 py-2">
+      <div className="text-base font-semibold text-text tnum leading-none">{value}</div>
+      <div className="text-2xs text-muted mt-1 truncate">
+        {label}
+        {sub ? <span className="text-muted"> · {sub}</span> : null}
+      </div>
     </div>
   );
 }

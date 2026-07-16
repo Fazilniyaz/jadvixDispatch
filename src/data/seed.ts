@@ -157,10 +157,12 @@ export const seedEmployees: Employee[] = [
 
 // ---- Shifts ----
 // One shift runs as one wave, so the running/pending state lives on the shift.
+// products are filled in below, once seedProducts is defined, so each shift
+// carries the products + per-shift stock allocated to it.
 export const seedShifts: Shift[] = [
-  { id: 'shift-01', name: 'Morning', window: '06:00 – 14:00', status: 'active' },
-  { id: 'shift-02', name: 'Afternoon', window: '14:00 – 22:00', status: 'pending' },
-  { id: 'shift-03', name: 'Night', window: '22:00 – 06:00', status: 'pending' },
+  { id: 'shift-01', name: 'Morning', window: '06:00 – 14:00', status: 'active', products: [] },
+  { id: 'shift-02', name: 'Afternoon', window: '14:00 – 22:00', status: 'pending', products: [] },
+  { id: 'shift-03', name: 'Night', window: '22:00 – 06:00', status: 'pending', products: [] },
 ];
 
 // The demo's "currently running" shift.
@@ -168,12 +170,12 @@ export const activeShiftId = 'shift-01';
 
 // ---- Bays ----
 export const seedBays: Bay[] = [
-  { id: 'bay-01', shiftId: 'shift-01', assignedDriverId: 'emp-01', vehicleNo: 'TN-09-BX-4471', stocks: 18, date: '2026-07-06' },
-  { id: 'bay-02', shiftId: 'shift-01', assignedDriverId: 'emp-02', vehicleNo: 'TN-07-CH-2093', stocks: 24, date: '2026-07-06' },
-  { id: 'bay-03', shiftId: 'shift-02', assignedDriverId: 'emp-03', vehicleNo: 'LK21 XJV', stocks: 9, date: '2026-07-06' },
-  { id: 'bay-04', shiftId: 'shift-01', assignedDriverId: 'emp-07', vehicleNo: 'TN-11-DK-1207', stocks: 14, date: '2026-07-06' },
-  { id: 'bay-05', shiftId: 'shift-02', assignedDriverId: null, vehicleNo: '—', stocks: 0, date: '2026-07-06' },
-  { id: 'bay-06', shiftId: 'shift-03', assignedDriverId: 'emp-05', vehicleNo: 'TN-01-AZ-8890', stocks: 6, date: '2026-07-06' },
+  { id: 'bay-01', number: 1, shiftId: 'shift-01', assignedDriverId: 'emp-01', vehicleNo: 'TN-09-BX-4471', stocks: 18, date: '2026-07-06' },
+  { id: 'bay-02', number: 2, shiftId: 'shift-01', assignedDriverId: 'emp-02', vehicleNo: 'TN-07-CH-2093', stocks: 24, date: '2026-07-06' },
+  { id: 'bay-03', number: 3, shiftId: 'shift-02', assignedDriverId: 'emp-03', vehicleNo: 'LK21 XJV', stocks: 9, date: '2026-07-06' },
+  { id: 'bay-04', number: 4, shiftId: 'shift-01', assignedDriverId: 'emp-07', vehicleNo: 'TN-11-DK-1207', stocks: 14, date: '2026-07-06' },
+  { id: 'bay-05', number: 5, shiftId: 'shift-02', assignedDriverId: null, vehicleNo: '—', stocks: 0, date: '2026-07-06' },
+  { id: 'bay-06', number: 6, shiftId: 'shift-03', assignedDriverId: 'emp-05', vehicleNo: 'TN-01-AZ-8890', stocks: 6, date: '2026-07-06' },
 ];
 
 // ---- Locations (one delivery point per location, grouped by shift) ----
@@ -242,6 +244,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-4A9C',
     name: 'Ceramic dinnerware set',
     type: 'Fragile',
+    stocks: 18,
     assignedEmployeeId: 'emp-01',
     arrivalInfo: 'Inbound van · 06 Jul 07:10',
     shiftId: 'shift-01',
@@ -256,6 +259,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-77B1',
     name: 'Artisan sourdough (12)',
     type: 'Baked',
+    stocks: 12,
     assignedEmployeeId: 'emp-01',
     arrivalInfo: 'Bakery dock · 06 Jul 05:40',
     shiftId: 'shift-01',
@@ -270,6 +274,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-3C55',
     name: 'Flat-pack shelving',
     type: 'Packed',
+    stocks: 9,
     assignedEmployeeId: 'emp-02',
     arrivalInfo: 'Rail freight · 06 Jul 06:25',
     shiftId: 'shift-01',
@@ -284,6 +289,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-8821',
     name: 'Frozen seafood crate',
     type: 'Frozen',
+    stocks: 6,
     assignedEmployeeId: 'emp-02',
     arrivalInfo: 'Cold chain · 06 Jul 06:50',
     shiftId: 'shift-01',
@@ -298,6 +304,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-4417',
     name: 'Office supplies carton',
     type: 'Standard',
+    stocks: 20,
     assignedEmployeeId: 'emp-07',
     arrivalInfo: 'Inbound van · 06 Jul 07:30',
     shiftId: 'shift-01',
@@ -312,6 +319,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-5B10',
     name: 'Glassware pallet',
     type: 'Fragile',
+    stocks: 8,
     assignedEmployeeId: 'emp-03',
     arrivalInfo: 'Kings Cross dock · 06 Jul 13:15',
     shiftId: 'shift-02',
@@ -326,6 +334,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-6A2F',
     name: 'Patisserie boxes (30)',
     type: 'Baked',
+    stocks: 30,
     assignedEmployeeId: 'emp-03',
     arrivalInfo: 'Bakery dock · 06 Jul 12:50',
     shiftId: 'shift-02',
@@ -340,6 +349,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-2D88',
     name: 'Pharmacy cold pack',
     type: 'Frozen',
+    stocks: 5,
     assignedEmployeeId: null,
     arrivalInfo: 'Cold chain · 06 Jul 13:40',
     shiftId: 'shift-02',
@@ -354,6 +364,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-0E7A',
     name: 'Retail apparel bundle',
     type: 'Packed',
+    stocks: 15,
     assignedEmployeeId: 'emp-05',
     arrivalInfo: 'Inbound van · 06 Jul 21:20',
     shiftId: 'shift-03',
@@ -368,6 +379,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-9F03',
     name: 'Wine case (mixed)',
     type: 'Fragile',
+    stocks: 10,
     assignedEmployeeId: 'emp-01',
     arrivalInfo: 'Inbound van · 06 Jul 07:05',
     shiftId: 'shift-01',
@@ -382,6 +394,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-1120',
     name: 'Grocery essentials box',
     type: 'Standard',
+    stocks: 22,
     assignedEmployeeId: 'emp-07',
     arrivalInfo: 'Inbound van · 06 Jul 07:35',
     shiftId: 'shift-01',
@@ -396,6 +409,7 @@ export const seedProducts: Product[] = [
     code: 'JDX-6650',
     name: 'Electronics parcel',
     type: 'Packed',
+    stocks: 7,
     assignedEmployeeId: 'emp-02',
     arrivalInfo: 'Rail freight · 06 Jul 06:30',
     shiftId: 'shift-01',
@@ -406,6 +420,15 @@ export const seedProducts: Product[] = [
     eta: '10:15',
   },
 ];
+
+// Populate each shift's product list from the seeded products. Per-shift stock
+// defaults to the product's own on-hand count, but is tracked independently
+// afterwards (see ShiftManagement).
+seedProducts.forEach((p) => {
+  if (!p.shiftId) return;
+  const shift = seedShifts.find((s) => s.id === p.shiftId);
+  if (shift) shift.products.push({ productId: p.id, stock: p.stocks });
+});
 
 // ---- Leave requests ----
 export const seedLeaveRequests: LeaveRequest[] = [

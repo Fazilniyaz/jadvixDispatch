@@ -12,6 +12,7 @@ import type {
   ProductStatus,
   Route,
   Shift,
+  ShiftProduct,
   VehicleTicket,
   VehicleTicketStatus,
 } from '@/lib/types';
@@ -69,6 +70,7 @@ interface StoreState {
   productTypes: string[];
   moduleLabels: ModuleLabels;
   activeShiftId: string;
+  maxBays: number;
 
   // auth actions
   login: (email: string, password: string) => { ok: boolean; role?: string };
@@ -92,7 +94,7 @@ interface StoreState {
   deleteEmployee: (id: string) => void;
 
   // shifts (each shift runs as a single wave)
-  addShift: (s: Omit<Shift, 'id' | 'status'>) => void;
+  addShift: (s: Omit<Shift, 'id' | 'status' | 'products'> & { products?: ShiftProduct[] }) => void;
   updateShift: (id: string, patch: Partial<Shift>) => void;
   deleteShift: (id: string) => void;
   setActive: (shiftId: string) => void;
@@ -101,6 +103,7 @@ interface StoreState {
   addBay: (b: Omit<Bay, 'id'>) => void;
   updateBay: (id: string, patch: Partial<Bay>) => void;
   deleteBay: (id: string) => void;
+  setMaxBays: (n: number) => void;
 
   // routes
   addRoute: (r: Omit<Route, 'id'>) => void;
@@ -139,6 +142,7 @@ const seedState = () => ({
   productTypes: [...defaultProductTypes],
   moduleLabels: defaultModuleLabels,
   activeShiftId: seedActiveShiftId,
+  maxBays: 24,
 });
 
 export const useStore = create<StoreState>()(
@@ -259,7 +263,12 @@ export const useStore = create<StoreState>()(
         })),
 
       addShift: (sh) =>
-        set((s) => ({ shifts: [...s.shifts, { ...sh, id: nid('shift'), status: 'pending' }] })),
+        set((s) => ({
+          shifts: [
+            ...s.shifts,
+            { ...sh, id: nid('shift'), status: 'pending', products: sh.products ?? [] },
+          ],
+        })),
       updateShift: (id, patch) =>
         set((s) => ({ shifts: s.shifts.map((sh) => (sh.id === id ? { ...sh, ...patch } : sh)) })),
       deleteShift: (id) =>
@@ -275,6 +284,7 @@ export const useStore = create<StoreState>()(
           // Detach products staged in the removed bay.
           products: s.products.map((p) => (p.bayId === id ? { ...p, bayId: null } : p)),
         })),
+      setMaxBays: (n) => set({ maxBays: Math.max(1, Math.floor(n) || 1) }),
 
       addRoute: (r) => set((s) => ({ routes: [...s.routes, { ...r, id: nid('route') }] })),
       updateRoute: (id, patch) =>
@@ -355,8 +365,9 @@ export const useStore = create<StoreState>()(
       name: 'jadvix-dispatch',
       // Bumped on model changes: wave→shift (2), bay stocks + single-location routes (3),
       // employee errorCount for Stats (4), vehicle tickets (5),
-      // custom product types + bay date (6).
-      version: 6,
+      // custom product types + bay date (6),
+      // product stocks + per-shift products + bay number + maxBays (7).
+      version: 7,
     }
   )
 );

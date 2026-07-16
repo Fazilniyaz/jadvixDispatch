@@ -2,7 +2,10 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { useThemeEffect } from '@/store/useTheme';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
-import Landing from '@/pages/Landing';
+// Landing page is retained for future use but disabled for now — "/" goes
+// straight to the login screen. Re-enable by restoring the import and the
+// route below.
+// import Landing from '@/pages/Landing';
 import Signup from '@/pages/Signup';
 import Login from '@/pages/Login';
 
@@ -32,7 +35,9 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      {/* Landing page disabled for now — kept in src/pages/Landing.tsx for future use.
+          <Route path="/" element={<Landing />} /> */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
 

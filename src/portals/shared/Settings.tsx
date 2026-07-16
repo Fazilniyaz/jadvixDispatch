@@ -35,12 +35,25 @@ export default function Settings() {
   const resetModuleLabels = useStore((s) => s.resetModuleLabels);
   const theme = useStore((s) => s.theme);
   const setTheme = useStore((s) => s.setTheme);
+  const maxBays = useStore((s) => s.maxBays);
+  const setMaxBays = useStore((s) => s.setMaxBays);
+  const bays = useStore((s) => s.bays);
   const user = useStore((s) => s.user);
   const logout = useStore((s) => s.logout);
   const updateProfile = useStore((s) => s.updateProfile);
   const me = useCurrentEmployee();
 
   const isAdmin = user?.role === 'admin';
+
+  // Bays can't be numbered below the highest one already in use.
+  const minBays = Math.max(1, ...bays.map((b) => b.number));
+  // Local text state lets the admin type freely; we clamp only on commit (blur/Enter).
+  const [maxBaysInput, setMaxBaysInput] = useState(String(maxBays));
+  const commitMaxBays = () => {
+    const n = Math.max(minBays, Math.floor(Number(maxBaysInput)) || minBays);
+    setMaxBays(n);
+    setMaxBaysInput(String(n));
+  };
 
   // Profile form
   const [name, setName] = useState(user?.name ?? '');
@@ -249,6 +262,45 @@ export default function Settings() {
           </div>
         </Card>
       </div>
+
+      {/* Bay configuration — admin only */}
+      {isAdmin && (
+        <Card className="mt-4">
+          <CardHeader
+            title="Bay configuration"
+            subtitle="Sets how many numbered bays exist. Bay Management only allows numbers within this range."
+          />
+          <div className="p-4">
+            <div className="grid sm:grid-cols-[12rem_1fr] items-start gap-3">
+              <Field
+                label="Maximum bays"
+                htmlFor="max-bays"
+                hint={minBays > 1 ? `At least ${minBays} (bays already in use)` : '1 or more'}
+              >
+                <Input
+                  id="max-bays"
+                  type="number"
+                  min={minBays}
+                  className="tnum"
+                  value={maxBaysInput}
+                  onChange={(e) => setMaxBaysInput(e.target.value)}
+                  onBlur={commitMaxBays}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      commitMaxBays();
+                    }
+                  }}
+                />
+              </Field>
+              <p className="text-2xs text-muted sm:pt-7">
+                {bays.length} of {maxBays} bays currently in use. Only bay numbers 1–{maxBays} can be
+                assigned.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Module labels — admin only */}
       {isAdmin && (

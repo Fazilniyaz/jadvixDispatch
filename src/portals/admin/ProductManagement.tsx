@@ -19,6 +19,7 @@ const emptyForm = (): FormState => ({
   code: '',
   name: '',
   type: 'Standard',
+  stocks: 0,
   assignedEmployeeId: null,
   arrivalInfo: '',
   shiftId: null,
@@ -156,6 +157,13 @@ export default function ProductManagement() {
       render: (p) => <span className="font-medium text-text">{p.name}</span>,
     },
     { key: 'type', header: 'Type', render: (p) => <span className="text-text-2">{p.type}</span> },
+    {
+      key: 'stocks',
+      header: 'Stocks',
+      render: (p) => <span className="text-text tnum font-medium">{p.stocks}</span>,
+      headerClassName: 'text-right',
+      className: 'text-right',
+    },
     { key: 'status', header: 'Status', render: (p) => <StatusPill status={p.status} /> },
   ];
 
@@ -195,6 +203,16 @@ export default function ProductManagement() {
             </option>
           ))}
         </Select>
+      </Field>
+      <Field label="Stocks" htmlFor={`${idp}-stocks`} hint="Units on hand">
+        <Input
+          id={`${idp}-stocks`}
+          type="number"
+          min={0}
+          className="tnum"
+          value={form.stocks}
+          onChange={(e) => setForm({ ...form, stocks: Math.max(0, Number(e.target.value) || 0) })}
+        />
       </Field>
       <Field label="Status" htmlFor={`${idp}-status`}>
         <Select
