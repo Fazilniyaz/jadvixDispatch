@@ -73,7 +73,7 @@ interface StoreState {
   maxBays: number;
 
   // auth actions
-  login: (email: string, password: string) => { ok: boolean; role?: string };
+  login: (email: string, password: string) => { ok: boolean; role?: string; blocked?: boolean };
   logout: () => void;
   setTheme: (t: ThemePref) => void;
   toggleSidebar: () => void;
@@ -99,11 +99,15 @@ interface StoreState {
   deleteShift: (id: string) => void;
   setActive: (shiftId: string) => void;
 
-  // bays
+  // bays — the hub that reconnects shifts, employees, products and locations
   addBay: (b: Omit<Bay, 'id'>) => void;
   updateBay: (id: string, patch: Partial<Bay>) => void;
   deleteBay: (id: string) => void;
   setMaxBays: (n: number) => void;
+  ensureShiftBays: (shiftId: string) => void; // pad a shift up to maxBays with empty slots
+  reorderShiftBays: (shiftId: string, orderedIds: string[]) => void; // drag-and-drop numbering
+  swapBayNumber: (shiftId: string, bayId: string, newNumber: number) => void; // manual number entry
+  assignBayDriver: (bayId: string, driverId: string | null) => void; // one driver per bay
 
   // routes
   addRoute: (r: Omit<Route, 'id'>) => void;
@@ -147,17 +151,30 @@ const seedState = () => ({
 
 export const useStore = create<StoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       theme: 'system',
       sidebarCollapsed: false,
       ...seedState(),
 
       login: (email, password) => {
-        const rec = CREDENTIALS[email.trim().toLowerCase()];
+        const key = email.trim().toLowerCase();
+        // 1) Built-in demo accounts.
+        const rec = CREDENTIALS[key];
         if (rec && rec.password === password) {
           set({ user: rec.user });
           return { ok: true, role: rec.user.role };
+        }
+        // 2) Admin-created driver credentials (real per-driver login).
+        const emp = get().employees.find(
+          (e) => e.role === 'driver' && (e.email ?? '').trim().toLowerCase() === key
+        );
+        if (emp && emp.password && emp.password === password) {
+          if (emp.status === 'inactive') return { ok: false, blocked: true };
+          set({
+            user: { email: emp.email ?? key, role: 'driver', employeeId: emp.id, name: emp.name },
+          });
+          return { ok: true, role: 'driver' };
         }
         return { ok: false };
       },
@@ -285,6 +302,67 @@ export const useStore = create<StoreState>()(
           products: s.products.map((p) => (p.bayId === id ? { ...p, bayId: null } : p)),
         })),
       setMaxBays: (n) => set({ maxBays: Math.max(1, Math.floor(n) || 1) }),
+      ensureShiftBays: (shiftId) =>
+        set((s) => {
+          // Renumber this shift's existing bays 1..k, then pad up to maxBays.
+          const mine = s.bays
+            .filter((b) => b.shiftId === shiftId)
+            .sort((a, b) => a.number - b.number)
+            .map((b, i) => ({ ...b, number: i + 1 }));
+          const others = s.bays.filter((b) => b.shiftId !== shiftId);
+          const need = Math.max(0, s.maxBays - mine.length);
+          if (need === 0 && mine.every((b, i) => b.number === i + 1)) return {};
+          const created: Bay[] = Array.from({ length: need }, (_, i) => ({
+            id: nid('bay'),
+            number: mine.length + i + 1,
+            shiftId,
+            assignedDriverId: null,
+            vehicleNo: '',
+            productId: null,
+            routeId: null,
+            status: 'active',
+            stocks: 0,
+            date: new Date().toISOString().slice(0, 10),
+          }));
+          return { bays: [...others, ...mine, ...created] };
+        }),
+      reorderShiftBays: (shiftId, orderedIds) =>
+        set((s) => {
+          const pos = new Map(orderedIds.map((id, i) => [id, i + 1] as const));
+          return {
+            bays: s.bays.map((b) =>
+              b.shiftId === shiftId && pos.has(b.id) ? { ...b, number: pos.get(b.id)! } : b
+            ),
+          };
+        }),
+      swapBayNumber: (shiftId, bayId, newNumber) =>
+        set((s) => {
+          const target = s.bays.find((b) => b.id === bayId);
+          if (!target || target.number === newNumber) return {};
+          const cur = target.number;
+          return {
+            bays: s.bays.map((b) => {
+              if (b.shiftId !== shiftId) return b;
+              if (b.id === bayId) return { ...b, number: newNumber };
+              if (b.number === newNumber) return { ...b, number: cur }; // swap partner
+              return b;
+            }),
+          };
+        }),
+      assignBayDriver: (bayId, driverId) =>
+        set((s) => {
+          const driver = driverId ? s.employees.find((e) => e.id === driverId) : null;
+          return {
+            // A driver lives in at most one bay, so clear them from any other.
+            bays: s.bays.map((b) => {
+              if (b.id === bayId)
+                return { ...b, assignedDriverId: driverId, vehicleNo: driver?.vehicleNo ?? '' };
+              if (driverId && b.assignedDriverId === driverId)
+                return { ...b, assignedDriverId: null, vehicleNo: '' };
+              return b;
+            }),
+          };
+        }),
 
       addRoute: (r) => set((s) => ({ routes: [...s.routes, { ...r, id: nid('route') }] })),
       updateRoute: (id, patch) =>
@@ -366,8 +444,10 @@ export const useStore = create<StoreState>()(
       // Bumped on model changes: wave→shift (2), bay stocks + single-location routes (3),
       // employee errorCount for Stats (4), vehicle tickets (5),
       // custom product types + bay date (6),
-      // product stocks + per-shift products + bay number + maxBays (7).
-      version: 7,
+      // product stocks + per-shift products + bay number + maxBays (7),
+      // employee 5-status enum + driver login credentials (8),
+      // per-bay product/location/status + per-shift bay numbering (9).
+      version: 9,
     }
   )
 );

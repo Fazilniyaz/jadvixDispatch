@@ -17,7 +17,11 @@ export default function Login() {
     e.preventDefault();
     const res = login(email, password);
     if (!res.ok) {
-      setError('Invalid email or password.');
+      setError(
+        res.blocked
+          ? 'Your account is blocked. Contact your administrator.'
+          : 'Invalid email or password.'
+      );
       return;
     }
     setError('');

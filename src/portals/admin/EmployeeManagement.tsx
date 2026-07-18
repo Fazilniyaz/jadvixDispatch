@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { ChevronRight, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { ChevronRight, KeyRound, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card } from '@/components/Card';
 import { DataTable, type Column } from '@/components/DataTable';
@@ -11,14 +11,38 @@ import { cn } from '@/lib/utils';
 import { useStore } from '@/store/useStore';
 import type { Employee, EmployeeRole, EmployeeStatus } from '@/lib/types';
 
+const statusLabel = (s: EmployeeStatus) =>
+  s === 'full-time'
+    ? 'Full-time'
+    : s === 'contract-based'
+      ? 'Contract-based'
+      : s === 'leave'
+        ? 'On leave'
+        : s === 'inactive'
+          ? 'Inactive (blocked)'
+          : 'Active';
+
+// Employee Management is fully independent — no link to shifts, products or
+// locations. Driver login credentials (email + password) are set here; a driver
+// whose status is 'inactive' is blocked from signing in.
+
+const STATUS_OPTIONS: { value: EmployeeStatus; label: string }[] = [
+  { value: 'active', label: 'Active' },
+  { value: 'full-time', label: 'Full-time' },
+  { value: 'contract-based', label: 'Contract-based' },
+  { value: 'leave', label: 'On leave' },
+  { value: 'inactive', label: 'Inactive (blocked)' },
+];
+
 type FormState = {
   id: string;
   name: string;
   vehicleNo: string;
   contactNo: string;
   role: EmployeeRole;
-  shift: string;
   status: EmployeeStatus;
+  email: string;
+  password: string;
 };
 
 const emptyForm = (): FormState => ({
@@ -27,8 +51,9 @@ const emptyForm = (): FormState => ({
   vehicleNo: '',
   contactNo: '',
   role: 'driver',
-  shift: 'Morning',
   status: 'active',
+  email: '',
+  password: '',
 });
 
 const formFrom = (e: Employee): FormState => ({
@@ -37,15 +62,14 @@ const formFrom = (e: Employee): FormState => ({
   vehicleNo: e.vehicleNo,
   contactNo: e.contactNo,
   role: e.role,
-  shift: e.shift,
   status: e.status,
+  email: e.email ?? '',
+  password: e.password ?? '',
 });
 
 export default function EmployeeManagement() {
   const employees = useStore((s) => s.employees);
-  const routes = useStore((s) => s.routes);
   const labels = useStore((s) => s.moduleLabels);
-  const shifts = useStore((s) => s.shifts);
   const addEmployee = useStore((s) => s.addEmployee);
   const updateEmployee = useStore((s) => s.updateEmployee);
   const deleteEmployee = useStore((s) => s.deleteEmployee);
@@ -56,22 +80,34 @@ export default function EmployeeManagement() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<FormState>(emptyForm());
 
-  // Inline expand / edit flow.
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Edit flow (centered modal).
+  const [editing, setEditing] = useState<Employee | null>(null);
   const [editForm, setEditForm] = useState<FormState>(emptyForm());
+
   const [confirmDelete, setConfirmDelete] = useState<Employee | null>(null);
 
-  const routeName = (id: string) => routes.find((r) => r.id === id)?.name ?? id;
+  // Click a row to expand a read-only detail view (edit/delete stay on the row).
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return employees;
     return employees.filter((e) =>
-      `${e.id} ${e.name} ${e.vehicleNo} ${e.contactNo} ${e.role}`.toLowerCase().includes(q)
+      `${e.id} ${e.name} ${e.vehicleNo} ${e.contactNo} ${e.role} ${e.email ?? ''}`
+        .toLowerCase()
+        .includes(q)
     );
   }, [employees, search]);
 
   const idTaken = (id: string) => employees.some((e) => e.id === id.trim());
+  // An email must be unique across employees (excluding the one being edited).
+  const emailTaken = (email: string, exceptId?: string) => {
+    const key = email.trim().toLowerCase();
+    if (!key) return false;
+    return employees.some(
+      (e) => e.id !== exceptId && (e.email ?? '').trim().toLowerCase() === key
+    );
+  };
 
   const openCreate = () => {
     setCreateForm(emptyForm());
@@ -79,14 +115,17 @@ export default function EmployeeManagement() {
   };
 
   const saveCreate = () => {
+    const isDriver = createForm.role === 'driver';
     addEmployee({
       id: createForm.id.trim() || undefined,
-      name: createForm.name,
-      vehicleNo: createForm.vehicleNo,
-      contactNo: createForm.contactNo,
+      name: createForm.name.trim(),
+      vehicleNo: createForm.vehicleNo.trim(),
+      contactNo: createForm.contactNo.trim(),
       role: createForm.role,
-      shift: createForm.shift,
+      shift: '', // retained on the model but not managed here
       status: createForm.status,
+      email: isDriver ? createForm.email.trim() || undefined : undefined,
+      password: isDriver ? createForm.password || undefined : undefined,
       deliveredCount: 0,
       errorCount: 0,
       recentBayIds: [],
@@ -96,32 +135,25 @@ export default function EmployeeManagement() {
     setCreateOpen(false);
   };
 
-  const toggleRow = (e: Employee) => {
-    if (expandedId === e.id) {
-      setExpandedId(null);
-    } else {
-      setExpandedId(e.id);
-      setEditForm(formFrom(e));
-    }
-  };
-
-  // Explicit Edit button: always open the row's inline editor.
   const openEdit = (e: Employee) => {
-    setExpandedId(e.id);
+    setEditing(e);
     setEditForm(formFrom(e));
   };
 
   const saveEdit = () => {
-    if (!expandedId) return;
-    updateEmployee(expandedId, {
-      name: editForm.name,
-      vehicleNo: editForm.vehicleNo,
-      contactNo: editForm.contactNo,
+    if (!editing) return;
+    const isDriver = editForm.role === 'driver';
+    updateEmployee(editing.id, {
+      name: editForm.name.trim(),
+      vehicleNo: editForm.vehicleNo.trim(),
+      contactNo: editForm.contactNo.trim(),
       role: editForm.role,
-      shift: editForm.shift,
       status: editForm.status,
+      // Non-drivers have no portal login; clear any stale credentials.
+      email: isDriver ? editForm.email.trim() || undefined : undefined,
+      password: isDriver ? editForm.password || undefined : undefined,
     });
-    setExpandedId(null);
+    setEditing(null);
   };
 
   const columns: Column<Employee>[] = [
@@ -131,10 +163,7 @@ export default function EmployeeManagement() {
       render: (e) => (
         <ChevronRight
           size={15}
-          className={cn(
-            'text-muted transition-transform',
-            expandedId === e.id && 'rotate-90 text-text'
-          )}
+          className={cn('text-muted transition-transform', expandedId === e.id && 'rotate-90 text-text')}
         />
       ),
       className: 'w-8 pr-0',
@@ -149,215 +178,225 @@ export default function EmployeeManagement() {
     {
       key: 'vehicle',
       header: 'Vehicle',
-      render: (e) => <span className="font-mono text-2xs text-text-2">{e.vehicleNo}</span>,
+      render: (e) => <span className="font-mono text-2xs text-text-2">{e.vehicleNo || '—'}</span>,
     },
     {
       key: 'contact',
       header: 'Contact',
-      render: (e) => <span className="font-mono text-2xs text-text-2 tnum">{e.contactNo}</span>,
+      render: (e) => <span className="font-mono text-2xs text-text-2 tnum">{e.contactNo || '—'}</span>,
     },
     { key: 'role', header: 'Role', render: (e) => <span className="text-text-2 capitalize">{e.role}</span> },
-    { key: 'shift', header: 'Shift', render: (e) => <span className="text-text-2">{e.shift || '—'}</span> },
     {
-      key: 'status',
-      header: 'Status',
-      render: (e) => <StatusPill status={e.status === 'active' ? 'active' : 'leave'} />,
+      key: 'login',
+      header: 'Login',
+      render: (e) =>
+        e.role === 'driver' && e.email ? (
+          <span className="inline-flex items-center gap-1 text-2xs text-text-2">
+            <KeyRound size={12} className="text-muted" />
+            {e.email}
+          </span>
+        ) : (
+          <span className="text-2xs text-muted">—</span>
+        ),
     },
-    {
-      key: 'deliveries',
-      header: 'Recent deliveries',
-      render: (e) => <span className="text-text tnum font-medium">{e.deliveredCount}</span>,
-      headerClassName: 'text-right',
-      className: 'text-right',
-    },
+    { key: 'status', header: 'Status', render: (e) => <StatusPill status={e.status} /> },
     {
       key: 'actions',
-      header: 'Actions',
+      header: '',
+      headerClassName: 'text-right',
+      className: 'text-right',
       render: (e) => (
-        <div className="flex items-center justify-end gap-1.5">
-          <Button
-            variant="secondary"
-            size="sm"
+        <div className="flex items-center justify-end gap-1">
+          <button
             onClick={(ev) => {
               ev.stopPropagation();
               openEdit(e);
             }}
+            aria-label={`Edit ${e.name}`}
+            title="Edit"
+            className="text-muted hover:text-text p-1.5 rounded-[3px] hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
-            <Pencil size={14} />
-            Edit
-          </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            aria-label={`Delete ${e.name}`}
+            <Pencil size={15} />
+          </button>
+          <button
             onClick={(ev) => {
               ev.stopPropagation();
               setConfirmDelete(e);
             }}
+            aria-label={`Delete ${e.name}`}
+            title="Delete"
+            className="text-muted hover:text-exception p-1.5 rounded-[3px] hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
           >
-            <Trash2 size={14} />
-          </Button>
+            <Trash2 size={15} />
+          </button>
         </div>
       ),
-      headerClassName: 'text-right',
-      className: 'text-right',
     },
   ];
 
-  const renderExpanded = (e: Employee) => {
-    const dirty =
-      editForm.name !== e.name ||
-      editForm.vehicleNo !== e.vehicleNo ||
-      editForm.contactNo !== e.contactNo ||
-      editForm.role !== e.role ||
-      editForm.shift !== e.shift ||
-      editForm.status !== e.status;
+  // Read-only detail shown when a row is expanded.
+  const renderExpanded = (e: Employee) => (
+    <div className="px-3 sm:px-4 py-4 border-t border-border">
+      <div className="flex items-center gap-1.5 mb-3">
+        <h4 className="text-2xs uppercase tracking-wide text-muted">Employee details</h4>
+        <span className="font-mono text-2xs text-muted ml-auto tnum">{e.id.toUpperCase()}</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Detail label="Full name">{e.name}</Detail>
+        <Detail label="Role"><span className="capitalize">{e.role}</span></Detail>
+        <Detail label="Status">
+          <StatusPill status={e.status} label={statusLabel(e.status)} />
+        </Detail>
+        <Detail label="Vehicle" mono>{e.vehicleNo || '—'}</Detail>
+        <Detail label="Contact" mono>{e.contactNo || '—'}</Detail>
+        {e.role === 'driver' && (
+          <Detail label="Login email" mono>{e.email || 'Not set'}</Detail>
+        )}
+      </div>
+      <div className="flex items-center gap-2 mt-4">
+        <Button variant="secondary" size="sm" onClick={() => openEdit(e)}>
+          <Pencil size={14} />
+          Edit
+        </Button>
+        <Button variant="danger" size="sm" onClick={() => setConfirmDelete(e)}>
+          <Trash2 size={14} />
+          Delete
+        </Button>
+      </div>
+    </div>
+  );
 
+  // Shared field grid for create + edit modals. `lockId` disables the ID field (edit).
+  const fields = (
+    form: FormState,
+    setForm: (f: FormState) => void,
+    idp: string,
+    opts: { lockId: boolean; exceptId?: string }
+  ) => {
+    const isDriver = form.role === 'driver';
+    const dupEmail = isDriver && !!form.email.trim() && emailTaken(form.email, opts.exceptId);
     return (
-      <div className="px-3 sm:px-4 py-4 border-t border-border">
-        <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
-          {/* Editable details */}
-          <div>
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field
+            label="Employee ID"
+            htmlFor={`${idp}-id`}
+            hint={opts.lockId ? 'Cannot be changed' : 'Leave blank to auto-generate'}
+          >
+            <Input
+              id={`${idp}-id`}
+              className="font-mono"
+              placeholder="e.g. EMP-042"
+              value={form.id}
+              disabled={opts.lockId}
+              onChange={(e) => setForm({ ...form, id: e.target.value })}
+            />
+            {!opts.lockId && !!form.id.trim() && idTaken(form.id) && (
+              <p className="text-2xs text-exception mt-1">This ID is already in use.</p>
+            )}
+          </Field>
+          <Field label="Full name" htmlFor={`${idp}-name`}>
+            <Input
+              id={`${idp}-name`}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="e.g. Jane Doe"
+            />
+          </Field>
+          <Field label="Vehicle no" htmlFor={`${idp}-vehicle`}>
+            <Input
+              id={`${idp}-vehicle`}
+              className="font-mono"
+              value={form.vehicleNo}
+              onChange={(e) => setForm({ ...form, vehicleNo: e.target.value })}
+              placeholder="e.g. TN-09-BX-4471"
+            />
+          </Field>
+          <Field label="Contact no" htmlFor={`${idp}-contact`}>
+            <Input
+              id={`${idp}-contact`}
+              className="font-mono"
+              value={form.contactNo}
+              onChange={(e) => setForm({ ...form, contactNo: e.target.value })}
+              placeholder="+91 …"
+            />
+          </Field>
+          <Field label="Role" htmlFor={`${idp}-role`} hint="Preset or custom">
+            <Input
+              id={`${idp}-role`}
+              list="employee-role-options"
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              placeholder="e.g. Supervisor"
+            />
+          </Field>
+          <Field label="Status" htmlFor={`${idp}-status`}>
+            <Select
+              id={`${idp}-status`}
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value as EmployeeStatus })}
+            >
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+
+        {/* Driver login credentials */}
+        {isDriver && (
+          <div className="border border-border rounded-[3px] bg-surface-2 p-3">
             <div className="flex items-center gap-1.5 mb-3">
-              <Pencil size={13} className="text-muted" />
-              <h4 className="text-2xs uppercase tracking-wide text-muted">Edit details</h4>
-              <span className="font-mono text-2xs text-muted ml-auto tnum">{e.id.toUpperCase()}</span>
+              <KeyRound size={13} className="text-muted" />
+              <h4 className="text-2xs uppercase tracking-wide text-muted">Driver portal login</h4>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Full name" htmlFor={`e-name-${e.id}`}>
+              <Field label="Login email" htmlFor={`${idp}-email`}>
                 <Input
-                  id={`e-name-${e.id}`}
-                  value={editForm.name}
-                  onChange={(ev) => setEditForm({ ...editForm, name: ev.target.value })}
-                />
-              </Field>
-              <Field label="Vehicle no" htmlFor={`e-vehicle-${e.id}`}>
-                <Input
-                  id={`e-vehicle-${e.id}`}
+                  id={`${idp}-email`}
+                  type="email"
                   className="font-mono"
-                  value={editForm.vehicleNo}
-                  onChange={(ev) => setEditForm({ ...editForm, vehicleNo: ev.target.value })}
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="driver@company.com"
                 />
-              </Field>
-              <Field label="Contact no" htmlFor={`e-contact-${e.id}`}>
-                <Input
-                  id={`e-contact-${e.id}`}
-                  className="font-mono"
-                  value={editForm.contactNo}
-                  onChange={(ev) => setEditForm({ ...editForm, contactNo: ev.target.value })}
-                />
-              </Field>
-              <Field label="Role" htmlFor={`e-role-${e.id}`} hint="Pick a preset or type a custom role">
-                <Input
-                  id={`e-role-${e.id}`}
-                  list="employee-role-options"
-                  value={editForm.role}
-                  onChange={(ev) => setEditForm({ ...editForm, role: ev.target.value })}
-                  placeholder="e.g. Supervisor"
-                />
-              </Field>
-              <Field label="Shift" htmlFor={`e-shift-${e.id}`}>
-                <Select
-                  id={`e-shift-${e.id}`}
-                  value={editForm.shift}
-                  onChange={(ev) => setEditForm({ ...editForm, shift: ev.target.value })}
-                >
-                  <option value="">Unassigned</option>
-                  {shifts.map((s) => (
-                    <option key={s.id} value={s.name}>
-                      {s.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Status" htmlFor={`e-status-${e.id}`}>
-                <Select
-                  id={`e-status-${e.id}`}
-                  value={editForm.status}
-                  onChange={(ev) =>
-                    setEditForm({ ...editForm, status: ev.target.value as EmployeeStatus })
-                  }
-                >
-                  <option value="active">Active</option>
-                  <option value="leave">On leave</option>
-                </Select>
-              </Field>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 mt-4">
-              <Button
-                variant="primary"
-                onClick={saveEdit}
-                disabled={!editForm.name.trim() || !dirty}
-              >
-                Save changes
-              </Button>
-              <Button variant="ghost" onClick={() => setExpandedId(null)}>
-                Cancel
-              </Button>
-              <Button variant="danger" className="ml-auto" onClick={() => setConfirmDelete(e)}>
-                <Trash2 size={14} />
-                Delete
-              </Button>
-            </div>
-          </div>
-
-          {/* Read-only activity */}
-          <div className="space-y-4 lg:border-l lg:border-border lg:pl-5">
-            <div className="grid grid-cols-3 gap-2">
-              <Stat label="Delivered" value={e.deliveredCount} />
-              <Stat label="Recent bays" value={e.recentBayIds.length} />
-              <Stat label="Recent routes" value={e.recentRouteIds.length} />
-            </div>
-
-            <div>
-              <h4 className="text-2xs uppercase tracking-wide text-muted mb-2">Recently visited</h4>
-              <div className="flex flex-wrap gap-1.5">
-                {e.recentBayIds.map((b) => (
-                  <span
-                    key={b}
-                    className="font-mono text-2xs border border-border rounded-[3px] px-1.5 py-0.5 text-text-2"
-                  >
-                    {b.toUpperCase()}
-                  </span>
-                ))}
-                {e.recentRouteIds.map((r) => (
-                  <span
-                    key={r}
-                    className="text-2xs border border-border rounded-[3px] px-1.5 py-0.5 text-text-2"
-                  >
-                    {routeName(r)}
-                  </span>
-                ))}
-                {e.recentBayIds.length === 0 && e.recentRouteIds.length === 0 && (
-                  <span className="text-2xs text-muted">No recent activity</span>
+                {dupEmail && (
+                  <p className="text-2xs text-exception mt-1">
+                    Another employee already uses this email.
+                  </p>
                 )}
-              </div>
+              </Field>
+              <Field label="Password" htmlFor={`${idp}-password`}>
+                <Input
+                  id={`${idp}-password`}
+                  type="text"
+                  className="font-mono"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder="Set a password"
+                />
+              </Field>
             </div>
-
-            <div>
-              <h4 className="text-2xs uppercase tracking-wide text-muted mb-2">Delivery history</h4>
-              {e.history.length === 0 ? (
-                <p className="text-2xs text-muted">No records yet.</p>
-              ) : (
-                <div className="border border-border rounded-[3px] divide-y divide-border">
-                  {e.history.map((h, i) => (
-                    <div key={i} className="flex items-center justify-between px-3 py-2 text-[13px]">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="font-mono text-2xs text-text-2 tnum">{h.productCode}</span>
-                        <span className="text-text-2 truncate">{h.route}</span>
-                      </div>
-                      <span className="text-2xs text-muted tnum">{h.date}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <p className="text-2xs text-muted mt-2">
+              The driver signs in with these on the driver portal. Set status to{' '}
+              <span className="font-medium text-text-2">Inactive</span> to block their login.
+            </p>
           </div>
-        </div>
+        )}
       </div>
     );
   };
+
+  // Validity: name required; unique ID on create; unique driver email.
+  const createInvalid =
+    !createForm.name.trim() ||
+    (!!createForm.id.trim() && idTaken(createForm.id)) ||
+    (createForm.role === 'driver' && emailTaken(createForm.email));
+  const editInvalid =
+    !editForm.name.trim() ||
+    (editForm.role === 'driver' && emailTaken(editForm.email, editing?.id));
 
   return (
     <div>
@@ -366,9 +405,10 @@ export default function EmployeeManagement() {
         <option value="driver" />
         <option value="dispatcher" />
       </datalist>
+
       <PageHeader
         title={labels.employees}
-        description="Drivers and dispatchers, their vehicles, shifts and delivery history."
+        description="An independent staff register — drivers, dispatchers and their portal logins."
         action={
           <Button variant="primary" onClick={openCreate}>
             <Plus size={16} />
@@ -382,7 +422,7 @@ export default function EmployeeManagement() {
           <div className="relative max-w-sm">
             <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
             <Input
-              placeholder="Search ID, name, vehicle or contact"
+              placeholder="Search ID, name, vehicle, contact or email"
               className="pl-8"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -393,7 +433,7 @@ export default function EmployeeManagement() {
           columns={columns}
           rows={rows}
           rowKey={(e) => e.id}
-          onRowClick={toggleRow}
+          onRowClick={(e) => setExpandedId((prev) => (prev === e.id ? null : e.id))}
           expandedKey={expandedId}
           renderExpanded={renderExpanded}
           empty="No employees match your search."
@@ -410,93 +450,39 @@ export default function EmployeeManagement() {
             <Button variant="ghost" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              onClick={saveCreate}
-              disabled={
-                !createForm.name.trim() || (!!createForm.id.trim() && idTaken(createForm.id))
-              }
-            >
+            <Button variant="primary" onClick={saveCreate} disabled={createInvalid}>
               Add employee
             </Button>
           </>
         }
       >
-        <div className="space-y-4">
-          <Field label="Employee ID" htmlFor="c-id" hint="Leave blank to auto-generate">
-            <Input
-              id="c-id"
-              className="font-mono"
-              placeholder="e.g. EMP-042"
-              value={createForm.id}
-              onChange={(e) => setCreateForm({ ...createForm, id: e.target.value })}
-            />
-            {!!createForm.id.trim() && idTaken(createForm.id) && (
-              <p className="text-2xs text-exception mt-1">This ID is already in use.</p>
+        {fields(createForm, setCreateForm, 'ec', { lockId: false })}
+      </Modal>
+
+      {/* Edit employee — centered modal */}
+      <Modal
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        title={
+          <span className="flex items-center gap-2">
+            Edit employee
+            {editing && (
+              <span className="font-mono text-2xs text-muted tnum">{editing.id.toUpperCase()}</span>
             )}
-          </Field>
-          <Field label="Full name" htmlFor="c-name">
-            <Input
-              id="c-name"
-              value={createForm.name}
-              onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Vehicle no" htmlFor="c-vehicle">
-              <Input
-                id="c-vehicle"
-                className="font-mono"
-                value={createForm.vehicleNo}
-                onChange={(e) => setCreateForm({ ...createForm, vehicleNo: e.target.value })}
-              />
-            </Field>
-            <Field label="Contact no" htmlFor="c-contact">
-              <Input
-                id="c-contact"
-                className="font-mono"
-                value={createForm.contactNo}
-                onChange={(e) => setCreateForm({ ...createForm, contactNo: e.target.value })}
-              />
-            </Field>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <Field label="Role" htmlFor="c-role" hint="Preset or custom">
-              <Input
-                id="c-role"
-                list="employee-role-options"
-                value={createForm.role}
-                onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
-                placeholder="e.g. Supervisor"
-              />
-            </Field>
-            <Field label="Shift" htmlFor="c-shift">
-              <Select
-                id="c-shift"
-                value={createForm.shift}
-                onChange={(e) => setCreateForm({ ...createForm, shift: e.target.value })}
-              >
-                {shifts.map((s) => (
-                  <option key={s.id} value={s.name}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="Status" htmlFor="c-status">
-              <Select
-                id="c-status"
-                value={createForm.status}
-                onChange={(e) =>
-                  setCreateForm({ ...createForm, status: e.target.value as EmployeeStatus })
-                }
-              >
-                <option value="active">Active</option>
-                <option value="leave">On leave</option>
-              </Select>
-            </Field>
-          </div>
-        </div>
+          </span>
+        }
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEditing(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={saveEdit} disabled={editInvalid}>
+              Save changes
+            </Button>
+          </>
+        }
+      >
+        {editing && fields(editForm, setEditForm, `ee-${editing.id}`, { lockId: true, exceptId: editing.id })}
       </Modal>
 
       {/* Delete confirm */}
@@ -512,10 +498,7 @@ export default function EmployeeManagement() {
             <Button
               variant="danger"
               onClick={() => {
-                if (confirmDelete) {
-                  deleteEmployee(confirmDelete.id);
-                  if (expandedId === confirmDelete.id) setExpandedId(null);
-                }
+                if (confirmDelete) deleteEmployee(confirmDelete.id);
                 setConfirmDelete(null);
               }}
             >
@@ -527,18 +510,26 @@ export default function EmployeeManagement() {
         <p className="text-[13px] text-text-2">
           Delete <span className="font-medium text-text">{confirmDelete?.name}</span> (
           <span className="font-mono text-2xs">{confirmDelete?.id.toUpperCase()}</span>)? This
-          unassigns them from any products and cannot be undone.
+          revokes any portal login and cannot be undone.
         </p>
       </Modal>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Detail({
+  label,
+  children,
+  mono,
+}: {
+  label: string;
+  children: ReactNode;
+  mono?: boolean;
+}) {
   return (
-    <div className="border border-border rounded-[3px] bg-surface px-3 py-2">
-      <div className="text-lg font-semibold text-text tnum leading-none">{value}</div>
-      <div className="text-2xs text-muted mt-1">{label}</div>
+    <div>
+      <div className="text-2xs uppercase tracking-wide text-muted mb-0.5">{label}</div>
+      <div className={cn('text-[13px] text-text font-medium', mono && 'font-mono')}>{children}</div>
     </div>
   );
 }

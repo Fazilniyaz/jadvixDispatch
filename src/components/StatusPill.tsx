@@ -20,12 +20,17 @@ const MAP: Record<string, { color: string; label?: string }> = {
   idle: { color: 'var(--muted)' },
   // employee
   leave: { color: 'var(--muted)' },
+  'full-time': { color: 'var(--out)', label: 'Full-time' },
+  'contract-based': { color: 'var(--picked)', label: 'Contract' },
+  inactive: { color: 'var(--exception)', label: 'Inactive' },
   // leave requests
   approved: { color: 'var(--delivered)' },
   rejected: { color: 'var(--exception)' },
   // bay
   full: { color: 'var(--transit)' },
   loading: { color: 'var(--out)' },
+  shipped: { color: 'var(--out)', label: 'Shipped' },
+  ready: { color: 'var(--transit)', label: 'Ready to go' },
 };
 
 interface StatusPillProps {

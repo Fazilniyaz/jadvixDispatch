@@ -38,6 +38,8 @@ export const seedEmployees: Employee[] = [
     role: 'driver',
     shift: 'Morning',
     status: 'active',
+    email: 'driver@gmail.com',
+    password: 'driver@123',
     deliveredCount: 34,
     errorCount: 2,
     recentBayIds: ['bay-01', 'bay-04'],
@@ -169,13 +171,14 @@ export const seedShifts: Shift[] = [
 export const activeShiftId = 'shift-01';
 
 // ---- Bays ----
+// Per-shift numbering; Bay Management pads each shift up to `maxBays` at runtime.
 export const seedBays: Bay[] = [
-  { id: 'bay-01', number: 1, shiftId: 'shift-01', assignedDriverId: 'emp-01', vehicleNo: 'TN-09-BX-4471', stocks: 18, date: '2026-07-06' },
-  { id: 'bay-02', number: 2, shiftId: 'shift-01', assignedDriverId: 'emp-02', vehicleNo: 'TN-07-CH-2093', stocks: 24, date: '2026-07-06' },
-  { id: 'bay-03', number: 3, shiftId: 'shift-02', assignedDriverId: 'emp-03', vehicleNo: 'LK21 XJV', stocks: 9, date: '2026-07-06' },
-  { id: 'bay-04', number: 4, shiftId: 'shift-01', assignedDriverId: 'emp-07', vehicleNo: 'TN-11-DK-1207', stocks: 14, date: '2026-07-06' },
-  { id: 'bay-05', number: 5, shiftId: 'shift-02', assignedDriverId: null, vehicleNo: '—', stocks: 0, date: '2026-07-06' },
-  { id: 'bay-06', number: 6, shiftId: 'shift-03', assignedDriverId: 'emp-05', vehicleNo: 'TN-01-AZ-8890', stocks: 6, date: '2026-07-06' },
+  { id: 'bay-01', number: 1, shiftId: 'shift-01', assignedDriverId: 'emp-01', vehicleNo: 'TN-09-BX-4471', productId: 'p-01', routeId: 'route-01', status: 'active', stocks: 18, date: '2026-07-06' },
+  { id: 'bay-02', number: 2, shiftId: 'shift-01', assignedDriverId: 'emp-02', vehicleNo: 'TN-07-CH-2093', productId: 'p-03', routeId: 'route-02', status: 'ready', stocks: 24, date: '2026-07-06' },
+  { id: 'bay-03', number: 1, shiftId: 'shift-02', assignedDriverId: 'emp-03', vehicleNo: 'LK21 XJV', productId: 'p-06', routeId: 'route-04', status: 'active', stocks: 9, date: '2026-07-06' },
+  { id: 'bay-04', number: 3, shiftId: 'shift-01', assignedDriverId: 'emp-07', vehicleNo: 'TN-11-DK-1207', productId: 'p-05', routeId: 'route-01', status: 'shipped', stocks: 14, date: '2026-07-06' },
+  { id: 'bay-05', number: 2, shiftId: 'shift-02', assignedDriverId: null, vehicleNo: '', productId: null, routeId: 'route-05', status: 'active', stocks: 0, date: '2026-07-06' },
+  { id: 'bay-06', number: 1, shiftId: 'shift-03', assignedDriverId: 'emp-05', vehicleNo: 'TN-01-AZ-8890', productId: 'p-09', routeId: 'route-03', status: 'active', stocks: 6, date: '2026-07-06' },
 ];
 
 // ---- Locations (one delivery point per location, grouped by shift) ----

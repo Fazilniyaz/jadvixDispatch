@@ -1,249 +1,225 @@
-import { useState } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { AlertTriangle, ChevronRight, Clock, Pencil, Plus, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card, CardHeader } from '@/components/Card';
-import { StatusPill } from '@/components/StatusPill';
 import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
-import { Field, Input, Select } from '@/components/Field';
+import { Field, Input } from '@/components/Field';
+import { cn } from '@/lib/utils';
 import { useStore } from '@/store/useStore';
-import type { Shift, ShiftProduct, ShiftStatus } from '@/lib/types';
+import type { Shift } from '@/lib/types';
 
-const SHIFT_STATUSES: ShiftStatus[] = ['pending', 'active', 'completed'];
-const statusLabel = (s: ShiftStatus) =>
-  s === 'active' ? 'Running' : s === 'completed' ? 'Completed' : 'Pending';
+// Shift Management is fully independent — a shift is just a name and a time
+// window. The only rule is that windows may not overlap. Max 4 shifts.
+const MAX_SHIFTS = 4;
+const DASH = '–';
+
+type FormState = { name: string; start: string; end: string };
+
+const emptyForm = (): FormState => ({ name: '', start: '', end: '' });
+
+// Pull the two HH:MM values back out of a stored "HH:MM – HH:MM" window.
+function parseWindow(window: string): { start: string; end: string } {
+  const m = window.match(/(\d{1,2}:\d{2})\s*[–-]\s*(\d{1,2}:\d{2})/);
+  return m ? { start: m[1], end: m[2] } : { start: '', end: '' };
+}
+
+const toMin = (t: string) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const fmt = (min: number) => `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`;
+
+// Expand a window into 1–2 day-segments (wraps past midnight when end < start).
+function segments(start: number, end: number): [number, number][] {
+  if (start === end) return [];
+  if (start < end) return [[start, end]];
+  return [
+    [start, 1440],
+    [0, end],
+  ];
+}
+
+const rangesOverlap = (aS: number, aE: number, bS: number, bE: number) => aS < bE && bS < aE;
+
+function windowsConflict(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  const a = segments(aStart, aEnd);
+  const b = segments(bStart, bEnd);
+  return a.some(([aS, aE]) => b.some(([bS, bE]) => rangesOverlap(aS, aE, bS, bE)));
+}
+
+// Human-friendly window length, accounting for overnight wrap.
+function durationLabel(start: number, end: number): string {
+  const mins = (end - start + 1440) % 1440 || 1440;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
 
 export default function ShiftManagement() {
   const shifts = useStore((s) => s.shifts);
-  const employees = useStore((s) => s.employees);
-  const routes = useStore((s) => s.routes);
-  const products = useStore((s) => s.products);
   const labels = useStore((s) => s.moduleLabels);
-  const activeShiftId = useStore((s) => s.activeShiftId);
   const addShift = useStore((s) => s.addShift);
   const updateShift = useStore((s) => s.updateShift);
   const deleteShift = useStore((s) => s.deleteShift);
-  const setActive = useStore((s) => s.setActive);
-  const updateEmployee = useStore((s) => s.updateEmployee);
-  const updateRoute = useStore((s) => s.updateRoute);
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [editing, setEditing] = useState<Shift | null>(null);
-  const [form, setForm] = useState({ name: '', window: '' });
-  const [assignedIds, setAssignedIds] = useState<string[]>([]);
-  const [assignedRouteIds, setAssignedRouteIds] = useState<string[]>([]);
-  const [assignedProducts, setAssignedProducts] = useState<ShiftProduct[]>([]);
+  const [form, setForm] = useState<FormState>(emptyForm());
   const [confirmDelete, setConfirmDelete] = useState<Shift | null>(null);
+  // Conflict popup: which existing shifts clash with the one being saved.
+  const [conflicts, setConflicts] = useState<Shift[] | null>(null);
+  // Click a card to expand a read-only detail view.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const activeEmployees = employees.filter((e) => e.status === 'active');
-
-  // An employee's location comes from Location Management (route.assignedDriverId).
-  // Shown here read-only so admins can see who covers where before assigning.
-  const locationsFor = (empId: string) =>
-    routes.filter((r) => r.assignedDriverId === empId).map((r) => r.name);
+  const atLimit = shifts.length >= MAX_SHIFTS;
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: '', window: '' });
-    setAssignedIds([]);
-    setAssignedRouteIds([]);
-    setAssignedProducts([]);
+    setForm(emptyForm());
     setPanelOpen(true);
   };
+
   const openEdit = (s: Shift) => {
     setEditing(s);
-    setForm({ name: s.name, window: s.window });
-    setAssignedIds(
-      employees.filter((e) => e.shift === s.name && e.status === 'active').map((e) => e.id)
-    );
-    setAssignedRouteIds(routes.filter((r) => r.shiftId === s.id).map((r) => r.id));
-    setAssignedProducts(s.products.map((p) => ({ ...p })));
+    setForm({ name: s.name, ...parseWindow(s.window) });
     setPanelOpen(true);
   };
-  // Employees and locations are independent: ticking one never auto-ticks the other.
-  const toggleAssign = (id: string) =>
-    setAssignedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
-  const toggleRoute = (id: string) =>
-    setAssignedRouteIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
-  // Products carry a per-shift stock. Ticking one defaults its stock to the
-  // product's own on-hand count; it can then be adjusted for this shift.
-  const productChecked = (id: string) => assignedProducts.some((p) => p.productId === id);
-  const toggleProduct = (id: string, defaultStock: number) =>
-    setAssignedProducts((list) =>
-      list.some((p) => p.productId === id)
-        ? list.filter((p) => p.productId !== id)
-        : [...list, { productId: id, stock: defaultStock }]
-    );
-  const setProductStock = (id: string, stock: number) =>
-    setAssignedProducts((list) =>
-      list.map((p) => (p.productId === id ? { ...p, stock: Math.max(0, stock) } : p))
-    );
+  const nameOk = form.name.trim().length > 0;
+  const timesOk = !!form.start && !!form.end && form.start !== form.end;
+  const canSave = nameOk && timesOk;
 
   const save = () => {
+    if (!canSave) return;
+    const startMin = toMin(form.start);
+    const endMin = toMin(form.end);
+
+    // Check the new window against every OTHER shift.
+    const clashing = shifts.filter((s) => {
+      if (editing && s.id === editing.id) return false;
+      const w = parseWindow(s.window);
+      if (!w.start || !w.end) return false;
+      return windowsConflict(startMin, endMin, toMin(w.start), toMin(w.end));
+    });
+
+    if (clashing.length > 0) {
+      setConflicts(clashing);
+      return;
+    }
+
+    const window = `${fmt(startMin)} ${DASH} ${fmt(endMin)}`;
     const name = form.name.trim();
-    const oldName = editing?.name;
-    let shiftId = editing?.id;
-    if (editing) {
-      updateShift(editing.id, { name, window: form.window, products: assignedProducts });
-    } else {
-      addShift({ name, window: form.window, products: assignedProducts });
-      // addShift appends, so the new shift is the last one — grab its id for assignments.
-      const created = useStore.getState().shifts;
-      shiftId = created[created.length - 1]?.id;
-    }
-
-    // Keep on-leave staff attached when a shift is renamed (active staff handled below).
-    if (editing && oldName && oldName !== name) {
-      employees.forEach((e) => {
-        if (e.shift === oldName && e.status !== 'active') updateEmployee(e.id, { shift: name });
-      });
-    }
-
-    // Apply the active-employee assignments: selected → this shift, deselected → unassigned.
-    activeEmployees.forEach((e) => {
-      const selected = assignedIds.includes(e.id);
-      const onThisShift = e.shift === name || (!!oldName && e.shift === oldName);
-      if (selected && e.shift !== name) updateEmployee(e.id, { shift: name });
-      else if (!selected && onThisShift) updateEmployee(e.id, { shift: '' });
-    });
-
-    // Apply the location assignments: selected → this shift, deselected → unassigned.
-    routes.forEach((r) => {
-      const selected = assignedRouteIds.includes(r.id);
-      if (selected && r.shiftId !== shiftId) updateRoute(r.id, { shiftId: shiftId ?? null });
-      else if (!selected && editing && r.shiftId === editing.id) updateRoute(r.id, { shiftId: null });
-    });
-
+    if (editing) updateShift(editing.id, { name, window });
+    else addShift({ name, window });
     setPanelOpen(false);
   };
-
-  const activeShift = shifts.find((s) => s.id === activeShiftId);
 
   return (
     <div>
       <PageHeader
         title={labels.shifts}
-        description="Plan the day in shifts and set which one is running now."
+        description="Plan the day in up to four shifts. Windows must not overlap."
         action={
-          <Button variant="primary" onClick={openCreate}>
+          <Button variant="primary" onClick={openCreate} disabled={atLimit}>
             <Plus size={16} />
             New shift
           </Button>
         }
       />
 
-      {/* Active indicator */}
-      <Card className="mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
-          <div className="flex items-center gap-3">
-            <span className="h-2 w-2 rounded-full bg-delivered" />
-            <div>
-              <div className="text-2xs uppercase tracking-wide text-muted">Currently running</div>
-              <div className="text-sm font-semibold text-text">
-                {activeShift?.name ?? '—'}
-                <span className="text-text-2 font-normal"> · {activeShift?.window ?? ''}</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Select
-              aria-label="Set active shift"
-              value={activeShiftId}
-              onChange={(e) => setActive(e.target.value)}
-              className="w-40"
-            >
-              {shifts.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+      {atLimit && (
+        <div className="mb-4 flex items-center gap-2 text-[13px] text-text-2 border border-border rounded-[3px] bg-surface-2 px-3 py-2">
+          <AlertTriangle size={14} className="text-muted" />
+          You've reached the maximum of {MAX_SHIFTS} shifts. Delete one to add another.
         </div>
-      </Card>
+      )}
 
-      <div className="grid lg:grid-cols-3 gap-4">
-        {shifts.map((shift) => {
-          const isActive = shift.id === activeShiftId;
-          const shiftEmployees = employees.filter((e) => e.shift === shift.name);
-          const shiftRoutes = routes.filter((r) => r.shiftId === shift.id);
-          const totalStock = shift.products.reduce((sum, p) => sum + p.stock, 0);
-          return (
-            <Card key={shift.id}>
-              <CardHeader
-                title={
-                  <span className="flex items-center gap-2">
-                    {shift.name}
-                    <StatusPill status={isActive ? 'active' : 'idle'} label={isActive ? 'Active' : 'Idle'} />
-                  </span>
-                }
-                subtitle={shift.window}
-                action={
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => openEdit(shift)}
-                      aria-label="Edit shift"
-                      className="text-muted hover:text-text p-1"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(shift)}
-                      aria-label="Delete shift"
-                      className="text-muted hover:text-exception p-1"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+      {shifts.length === 0 ? (
+        <Card className="p-10 text-center text-[13px] text-text-2">
+          No shifts yet. Create your first shift to plan the day.
+        </Card>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {shifts.map((shift) => {
+            const w = parseWindow(shift.window);
+            const dur = w.start && w.end ? durationLabel(toMin(w.start), toMin(w.end)) : '';
+            const overnight = !!w.start && !!w.end && toMin(w.end) < toMin(w.start);
+            const isExpanded = expandedId === shift.id;
+            return (
+              <Card key={shift.id}>
+                <CardHeader
+                  title={shift.name}
+                  subtitle={
+                    <span className="inline-flex items-center gap-1.5">
+                      <Clock size={12} className="text-muted" />
+                      <span className="tnum">{shift.window}</span>
+                    </span>
+                  }
+                  action={
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEdit(shift)}
+                        aria-label="Edit shift"
+                        title="Edit"
+                        className="text-muted hover:text-text p-1 rounded-[3px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelete(shift)}
+                        aria-label="Delete shift"
+                        title="Delete"
+                        className="text-muted hover:text-exception p-1 rounded-[3px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => setExpandedId((prev) => (prev === shift.id ? null : shift.id))}
+                  aria-expanded={isExpanded}
+                  className="w-full p-4 flex items-end justify-between text-left hover:bg-surface-2 transition-colors"
+                >
+                  <div>
+                    <div className="font-display text-2xl font-semibold text-text tnum leading-none">
+                      {w.start || '—'}
+                    </div>
+                    <div className="text-2xs text-muted mt-1">start</div>
                   </div>
-                }
-              />
-              <div className="p-4 space-y-3">
-                <div className="grid grid-cols-3 gap-2">
-                  <ShiftMetric label="Staff" value={shiftEmployees.length} />
-                  <ShiftMetric label="Locations" value={shiftRoutes.length} />
-                  <ShiftMetric label="Stock" value={totalStock} sub={`${shift.products.length} prod`} />
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-2xs uppercase tracking-wide text-muted">Status</span>
-                  <Select
-                    aria-label={`${shift.name} status`}
-                    value={shift.status}
-                    onChange={(e) =>
-                      updateShift(shift.id, { status: e.target.value as ShiftStatus })
-                    }
-                    className="h-7 w-32 text-2xs"
-                  >
-                    {SHIFT_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {statusLabel(s)}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
+                  <div className="text-muted text-2xs flex items-center gap-1">
+                    {dur}
+                    <ChevronRight
+                      size={13}
+                      className={cn('transition-transform', isExpanded && 'rotate-90 text-text')}
+                    />
+                  </div>
+                  <div className="text-right">
+                    <div className="font-display text-2xl font-semibold text-text tnum leading-none">
+                      {w.end || '—'}
+                    </div>
+                    <div className="text-2xs text-muted mt-1">end</div>
+                  </div>
+                </button>
+                {isExpanded && (
+                  <div className="border-t border-border px-4 py-3 grid grid-cols-2 gap-3">
+                    <ShiftDetail label="Window" mono>{shift.window}</ShiftDetail>
+                    <ShiftDetail label="Duration">{dur || '—'}</ShiftDetail>
+                    <ShiftDetail label="Type">{overnight ? 'Overnight' : 'Daytime'}</ShiftDetail>
+                    <ShiftDetail label="Shift ID" mono>{shift.id}</ShiftDetail>
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-                <div className="border-t border-border pt-3">
-                  <div className="text-2xs uppercase tracking-wide text-muted mb-2">
-                    Staff on shift ({shiftEmployees.length})
-                  </div>
-                  <div className="space-y-1.5">
-                    {shiftEmployees.map((e) => (
-                      <div key={e.id} className="flex items-center justify-between">
-                        <span className="text-[13px] text-text truncate">{e.name}</span>
-                        <StatusPill status={e.status === 'active' ? 'active' : 'leave'} />
-                      </div>
-                    ))}
-                    {shiftEmployees.length === 0 && (
-                      <p className="text-2xs text-muted">No staff assigned.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-
+      {/* Create / edit shift */}
       <Modal
         open={panelOpen}
         onClose={() => setPanelOpen(false)}
@@ -253,7 +229,7 @@ export default function ShiftManagement() {
             <Button variant="ghost" onClick={() => setPanelOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={save} disabled={!form.name.trim()}>
+            <Button variant="primary" onClick={save} disabled={!canSave}>
               {editing ? 'Save changes' : 'Create shift'}
             </Button>
           </>
@@ -265,162 +241,79 @@ export default function ShiftManagement() {
               id="s-name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="e.g. Morning"
+              placeholder="e.g. Morning Wave"
+              autoFocus
             />
           </Field>
-          <Field label="Window" htmlFor="s-window">
-            <Input
-              id="s-window"
-              value={form.window}
-              onChange={(e) => setForm({ ...form, window: e.target.value })}
-              placeholder="e.g. 06:00 – 14:00"
-            />
-          </Field>
-
-          <Field
-            label={`Assign active staff (${assignedIds.length})`}
-            hint="Each employee's location comes from Location Management — change it there."
-          >
-            <div className="border border-border rounded-[3px] max-h-56 overflow-y-auto divide-y divide-border">
-              {activeEmployees.length === 0 ? (
-                <p className="px-3 py-3 text-2xs text-muted">No active employees to assign.</p>
-              ) : (
-                activeEmployees.map((e) => {
-                  const checked = assignedIds.includes(e.id);
-                  const elsewhere =
-                    !checked && e.shift && e.shift !== form.name.trim() && e.shift !== editing?.name;
-                  const locs = locationsFor(e.id);
-                  return (
-                    <label
-                      key={e.id}
-                      className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-2"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleAssign(e.id)}
-                        className="h-4 w-4 accent-accent shrink-0"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[13px] text-text truncate">
-                          {e.name}
-                          {locs.length > 0 ? (
-                            <span className="text-muted font-normal"> — {locs.join(', ')}</span>
-                          ) : (
-                            <span className="text-muted font-normal"> — no location</span>
-                          )}
-                        </div>
-                        <div className="text-2xs text-muted capitalize">
-                          {e.role} · <span className="font-mono">{e.vehicleNo}</span>
-                        </div>
-                      </div>
-                      {elsewhere && (
-                        <span className="text-2xs text-muted shrink-0">on {e.shift}</span>
-                      )}
-                    </label>
-                  );
-                })
-              )}
-            </div>
-          </Field>
-
-          <Field
-            label={`Assign locations (${assignedRouteIds.length})`}
-            hint="Locations ticked here run under this shift."
-          >
-            <div className="border border-border rounded-[3px] max-h-56 overflow-y-auto divide-y divide-border">
-              {routes.length === 0 ? (
-                <p className="px-3 py-3 text-2xs text-muted">No locations to assign.</p>
-              ) : (
-                [...routes]
-                  .sort((a, b) => a.order - b.order)
-                  .map((r) => {
-                    const checked = assignedRouteIds.includes(r.id);
-                    const otherShift = shifts.find((s) => s.id === r.shiftId);
-                    const elsewhere = !checked && otherShift && otherShift.id !== editing?.id;
-                    return (
-                      <label
-                        key={r.id}
-                        className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-2"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleRoute(r.id)}
-                          className="h-4 w-4 accent-accent shrink-0"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[13px] text-text truncate">{r.name}</div>
-                          <div className="text-2xs text-muted">{r.areaName}</div>
-                        </div>
-                        {elsewhere && (
-                          <span className="text-2xs text-muted shrink-0">on {otherShift.name}</span>
-                        )}
-                      </label>
-                    );
-                  })
-              )}
-            </div>
-          </Field>
-
-          <Field
-            label={`Assign products & stock (${assignedProducts.length})`}
-            hint="Products ticked here run under this shift, each with its own stock."
-          >
-            <div className="border border-border rounded-[3px] max-h-64 overflow-y-auto divide-y divide-border">
-              {products.length === 0 ? (
-                <p className="px-3 py-3 text-2xs text-muted">No products to assign.</p>
-              ) : (
-                products.map((p) => {
-                  const checked = productChecked(p.id);
-                  const entry = assignedProducts.find((x) => x.productId === p.id);
-                  return (
-                    <div
-                      key={p.id}
-                      className="flex items-center gap-3 px-3 py-2 hover:bg-surface-2"
-                    >
-                      <label className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleProduct(p.id, p.stocks)}
-                          className="h-4 w-4 accent-accent shrink-0"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[13px] text-text truncate">{p.name}</div>
-                          <div className="text-2xs text-muted">
-                            <span className="font-mono">{p.code}</span> · {p.type}
-                          </div>
-                        </div>
-                      </label>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Input
-                          type="number"
-                          min={0}
-                          aria-label={`${p.name} stock for this shift`}
-                          value={entry ? entry.stock : ''}
-                          disabled={!checked}
-                          onChange={(e) => setProductStock(p.id, Number(e.target.value) || 0)}
-                          className="h-7 w-20 text-2xs tnum disabled:opacity-40"
-                          placeholder={String(p.stocks)}
-                        />
-                        <span className="text-2xs text-muted w-8">stk</span>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </Field>
-
-          {!editing && (
-            <p className="text-2xs text-muted">
-              New shifts start as Pending. Set them Running from the shift card once live.
-            </p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Start time" htmlFor="s-start">
+              <Input
+                id="s-start"
+                type="time"
+                className="tnum"
+                value={form.start}
+                onChange={(e) => setForm({ ...form, start: e.target.value })}
+              />
+            </Field>
+            <Field label="End time" htmlFor="s-end">
+              <Input
+                id="s-end"
+                type="time"
+                className="tnum"
+                value={form.end}
+                onChange={(e) => setForm({ ...form, end: e.target.value })}
+              />
+            </Field>
+          </div>
+          {form.start && form.end && form.start === form.end && (
+            <p className="text-2xs text-exception">Start and end time can't be the same.</p>
           )}
+          <p className="text-2xs text-muted">
+            An end time earlier than the start is treated as an overnight shift (e.g. 22:00 {DASH} 06:00).
+          </p>
         </div>
       </Modal>
 
+      {/* Conflict popup */}
+      <Modal
+        open={!!conflicts}
+        onClose={() => setConflicts(null)}
+        title={
+          <span className="flex items-center gap-2 text-exception">
+            <AlertTriangle size={16} />
+            Shifts having conflicts
+          </span>
+        }
+        footer={
+          <Button variant="primary" onClick={() => setConflicts(null)}>
+            Adjust times
+          </Button>
+        }
+      >
+        <p className="text-[13px] text-text-2">
+          The window{' '}
+          <span className="font-mono text-text tnum">
+            {form.start} {DASH} {form.end}
+          </span>{' '}
+          overlaps with:
+        </p>
+        <ul className="mt-3 space-y-1.5">
+          {conflicts?.map((s) => (
+            <li
+              key={s.id}
+              className="flex items-center justify-between border border-border rounded-[3px] px-3 py-2"
+            >
+              <span className="text-[13px] font-medium text-text">{s.name}</span>
+              <span className="font-mono text-2xs text-text-2 tnum">{s.window}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="text-2xs text-muted mt-3">
+          Pick a window that doesn't cross any existing shift's time range.
+        </p>
+      </Modal>
+
+      {/* Delete confirm */}
       <Modal
         open={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
@@ -451,14 +344,19 @@ export default function ShiftManagement() {
   );
 }
 
-function ShiftMetric({ label, value, sub }: { label: string; value: number; sub?: string }) {
+function ShiftDetail({
+  label,
+  children,
+  mono,
+}: {
+  label: string;
+  children: ReactNode;
+  mono?: boolean;
+}) {
   return (
-    <div className="border border-border rounded-[3px] bg-surface px-2.5 py-2">
-      <div className="text-base font-semibold text-text tnum leading-none">{value}</div>
-      <div className="text-2xs text-muted mt-1 truncate">
-        {label}
-        {sub ? <span className="text-muted"> · {sub}</span> : null}
-      </div>
+    <div>
+      <div className="text-2xs uppercase tracking-wide text-muted mb-0.5">{label}</div>
+      <div className={cn('text-[13px] text-text font-medium', mono && 'font-mono')}>{children}</div>
     </div>
   );
 }

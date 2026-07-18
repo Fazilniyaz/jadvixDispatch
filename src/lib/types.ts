@@ -31,7 +31,13 @@ export interface Product {
 
 // Built-in roles plus any custom role label entered when creating an employee.
 export type EmployeeRole = 'driver' | 'dispatcher' | (string & {});
-export type EmployeeStatus = 'active' | 'leave';
+// Flat status enum: mixes employment type and working state, per requirement.
+export type EmployeeStatus =
+  | 'full-time'
+  | 'contract-based'
+  | 'leave'
+  | 'active'
+  | 'inactive';
 
 export interface DeliveryRecord {
   date: string;
@@ -45,8 +51,12 @@ export interface Employee {
   vehicleNo: string;
   contactNo: string;
   role: EmployeeRole;
-  shift: string; // shift name
+  shift: string; // retained for Bay Management to orchestrate; not shown in Employee Management
   status: EmployeeStatus;
+  // Login credentials for drivers, set by admin. A driver with an email + password
+  // (and a non-'inactive' status) can sign in to the driver portal.
+  email?: string;
+  password?: string;
   deliveredCount: number;
   errorCount: number; // failed / exception deliveries
   recentBayIds: string[];
@@ -71,12 +81,19 @@ export interface Shift {
   products: ShiftProduct[]; // products + stocks running under this shift
 }
 
+// Bay Management is the hub that reconnects the independent modules. A bay row
+// directly holds its own employee, product, location and status.
+export type BayStatus = 'active' | 'shipped' | 'ready';
+
 export interface Bay {
   id: string;
-  number: number; // human-facing bay number (1..maxBays), unique
-  shiftId: string | null; // the shift this bay runs under — everything else derives from it
-  assignedDriverId: string | null;
-  vehicleNo: string;
+  number: number; // per-shift bay number (1..maxBays), set by order / drag-and-drop
+  shiftId: string | null; // which shift tab this bay belongs to
+  assignedDriverId: string | null; // employee staffed on this bay
+  vehicleNo: string; // mirrors the assigned driver's vehicle
+  productId: string | null; // product staged in this bay
+  routeId: string | null; // delivery location for this bay
+  status: BayStatus;
   stocks: number; // number of items staged in the bay
   date: string; // yyyy-mm-dd the bay was staged for
 }
