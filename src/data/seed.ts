@@ -1,507 +1,372 @@
 import type {
   Bay,
+  CheckIn,
+  Company,
+  Credential,
   Employee,
+  Hub,
+  Invoice,
   LeaveRequest,
   Message,
-  ModuleLabels,
+  Payslip,
+  Penalty,
   Product,
+  QueryTicket,
+  Reminder,
   Route,
   Shift,
   VehicleTicket,
 } from '@/lib/types';
 
-// ---- Module labels (renamable in Settings) ----
-export const defaultModuleLabels: ModuleLabels = {
-  dashboard: 'Dashboard',
-  products: 'Product Management',
-  employees: 'Employee Management',
-  shifts: 'Shift Management',
-  bays: 'Bay Management',
-  routes: 'Location Management',
-  leave: 'Leave Requests',
-  communication: 'Communication',
-  vehicles: 'Vehicle Management',
-  settings: 'Settings',
+/* ── date helpers (keep the demo always "today") ─────────────────────────── */
+export const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+export const today = () => isoDate(new Date());
+export const daysAgo = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return isoDate(d);
 };
+const nowIso = () => new Date().toISOString();
+export const currentPeriod = () => new Date().toISOString().slice(0, 7);
 
-// ---- Product types (extendable from Product Management) ----
 export const defaultProductTypes: string[] = ['Fragile', 'Baked', 'Packed', 'Frozen', 'Standard'];
 
-// ---- Employees ----
-// emp-01 is the seeded driver behind driver@gmail.com.
-export const seedEmployees: Employee[] = [
+/* ── Companies ───────────────────────────────────────────────────────────── */
+export const seedCompanies: Company[] = [
   {
-    id: 'emp-01',
-    name: 'Arjun Menon',
-    vehicleNo: 'TN-09-BX-4471',
-    contactNo: '+91 98407 21188',
-    role: 'driver',
-    shift: 'Morning',
+    id: 'co-01',
+    name: 'Northwind Logistics',
+    code: 'NORTHWIND',
+    contactEmail: 'ops@northwind.example',
+    city: 'Chennai',
     status: 'active',
-    email: 'driver@gmail.com',
-    password: 'driver@123',
-    deliveredCount: 34,
-    errorCount: 2,
-    recentBayIds: ['bay-01', 'bay-04'],
-    recentRouteIds: ['route-01', 'route-03'],
-    history: [
-      { date: '2026-07-06', productCode: 'JDX-4A9C', route: 'Islington loop' },
-      { date: '2026-07-06', productCode: 'JDX-77B1', route: 'Islington loop' },
-      { date: '2026-07-05', productCode: 'JDX-1120', route: 'Greenwich corridor' },
-      { date: '2026-07-05', productCode: 'JDX-9F03', route: 'Greenwich corridor' },
-    ],
+    createdAt: daysAgo(240),
+    setupFee: 15000,
+    perHubFee: 8000,
+    perEmployeeFee: 350,
   },
   {
-    id: 'emp-02',
-    name: 'Priya Ramesh',
-    vehicleNo: 'TN-07-CH-2093',
-    contactNo: '+91 99620 33471',
-    role: 'driver',
-    shift: 'Morning',
+    id: 'co-02',
+    name: 'Meridian Freight',
+    code: 'MERIDIAN',
+    contactEmail: 'hello@meridian.example',
+    city: 'Manchester',
     status: 'active',
-    deliveredCount: 28,
-    errorCount: 3,
-    recentBayIds: ['bay-02'],
-    recentRouteIds: ['route-02'],
-    history: [
-      { date: '2026-07-06', productCode: 'JDX-3C55', route: 'Wandsworth run' },
-      { date: '2026-07-05', productCode: 'JDX-8821', route: 'Wandsworth run' },
-    ],
-  },
-  {
-    id: 'emp-03',
-    name: 'David Whitmore',
-    vehicleNo: 'LK21 XJV',
-    contactNo: '+44 7700 900321',
-    role: 'driver',
-    shift: 'Afternoon',
-    status: 'active',
-    deliveredCount: 41,
-    errorCount: 1,
-    recentBayIds: ['bay-03'],
-    recentRouteIds: ['route-04'],
-    history: [
-      { date: '2026-07-06', productCode: 'JDX-5B10', route: 'Camden circuit' },
-      { date: '2026-07-06', productCode: 'JDX-6A2F', route: 'Camden circuit' },
-    ],
-  },
-  {
-    id: 'emp-04',
-    name: 'Sara Iqbal',
-    vehicleNo: 'LG70 ZNP',
-    contactNo: '+44 7700 900654',
-    role: 'driver',
-    shift: 'Afternoon',
-    status: 'leave',
-    deliveredCount: 19,
-    errorCount: 2,
-    recentBayIds: ['bay-05'],
-    recentRouteIds: ['route-05'],
-    history: [{ date: '2026-07-03', productCode: 'JDX-2D88', route: 'Hackney line' }],
-  },
-  {
-    id: 'emp-05',
-    name: 'Karthik Subramaniam',
-    vehicleNo: 'TN-01-AZ-8890',
-    contactNo: '+91 90031 55420',
-    role: 'driver',
-    shift: 'Night',
-    status: 'active',
-    deliveredCount: 22,
-    errorCount: 4,
-    recentBayIds: ['bay-06'],
-    recentRouteIds: ['route-03'],
-    history: [{ date: '2026-07-06', productCode: 'JDX-0E7A', route: 'Greenwich corridor' }],
-  },
-  {
-    id: 'emp-06',
-    name: 'Grace Okafor',
-    vehicleNo: 'LB19 TRC',
-    contactNo: '+44 7700 900987',
-    role: 'dispatcher',
-    shift: 'Morning',
-    status: 'active',
-    deliveredCount: 0,
-    errorCount: 0,
-    recentBayIds: [],
-    recentRouteIds: [],
-    history: [],
-  },
-  {
-    id: 'emp-07',
-    name: 'Meera Nair',
-    vehicleNo: 'TN-11-DK-1207',
-    contactNo: '+91 98847 66102',
-    role: 'driver',
-    shift: 'Morning',
-    status: 'active',
-    deliveredCount: 30,
-    errorCount: 2,
-    recentBayIds: ['bay-04'],
-    recentRouteIds: ['route-01'],
-    history: [{ date: '2026-07-06', productCode: 'JDX-4417', route: 'Islington loop' }],
-  },
-  {
-    id: 'emp-08',
-    name: 'Tom Bishop',
-    vehicleNo: 'LM22 WPD',
-    contactNo: '+44 7700 900112',
-    role: 'dispatcher',
-    shift: 'Afternoon',
-    status: 'active',
-    deliveredCount: 0,
-    errorCount: 0,
-    recentBayIds: [],
-    recentRouteIds: [],
-    history: [],
+    createdAt: daysAgo(96),
+    setupFee: 12000,
+    perHubFee: 8000,
+    perEmployeeFee: 350,
   },
 ];
 
-// ---- Shifts ----
-// One shift runs as one wave, so the running/pending state lives on the shift.
-// products are filled in below, once seedProducts is defined, so each shift
-// carries the products + per-shift stock allocated to it.
-export const seedShifts: Shift[] = [
-  { id: 'shift-01', name: 'Morning', window: '06:00 – 14:00', status: 'active', products: [] },
-  { id: 'shift-02', name: 'Afternoon', window: '14:00 – 22:00', status: 'pending', products: [] },
-  { id: 'shift-03', name: 'Night', window: '22:00 – 06:00', status: 'pending', products: [] },
-];
-
-// The demo's "currently running" shift.
-export const activeShiftId = 'shift-01';
-
-// ---- Bays ----
-// Per-shift numbering; Bay Management pads each shift up to `maxBays` at runtime.
-export const seedBays: Bay[] = [
-  { id: 'bay-01', number: 1, shiftId: 'shift-01', assignedDriverId: 'emp-01', vehicleNo: 'TN-09-BX-4471', productId: 'p-01', routeId: 'route-01', status: 'active', stocks: 18, date: '2026-07-06' },
-  { id: 'bay-02', number: 2, shiftId: 'shift-01', assignedDriverId: 'emp-02', vehicleNo: 'TN-07-CH-2093', productId: 'p-03', routeId: 'route-02', status: 'ready', stocks: 24, date: '2026-07-06' },
-  { id: 'bay-03', number: 1, shiftId: 'shift-02', assignedDriverId: 'emp-03', vehicleNo: 'LK21 XJV', productId: 'p-06', routeId: 'route-04', status: 'active', stocks: 9, date: '2026-07-06' },
-  { id: 'bay-04', number: 3, shiftId: 'shift-01', assignedDriverId: 'emp-07', vehicleNo: 'TN-11-DK-1207', productId: 'p-05', routeId: 'route-01', status: 'shipped', stocks: 14, date: '2026-07-06' },
-  { id: 'bay-05', number: 2, shiftId: 'shift-02', assignedDriverId: null, vehicleNo: '', productId: null, routeId: 'route-05', status: 'active', stocks: 0, date: '2026-07-06' },
-  { id: 'bay-06', number: 1, shiftId: 'shift-03', assignedDriverId: 'emp-05', vehicleNo: 'TN-01-AZ-8890', productId: 'p-09', routeId: 'route-03', status: 'active', stocks: 6, date: '2026-07-06' },
-];
-
-// ---- Locations (one delivery point per location, grouped by shift) ----
-export const seedRoutes: Route[] = [
+/* ── Hubs ────────────────────────────────────────────────────────────────── */
+export const seedHubs: Hub[] = [
   {
-    id: 'route-01',
-    name: 'Islington',
-    areaName: 'Islington',
-    coordinates: '51.5465, -0.1058',
-    eta: '10:10',
-    shiftId: 'shift-01',
-    assignedDriverId: 'emp-01',
-    order: 1,
-    status: 'active',
+    id: 'hub-01',
+    companyId: 'co-01',
+    name: 'Chennai Central',
+    code: 'CHN-01',
+    address: '14 Anna Salai, Teynampet',
+    city: 'Chennai',
+    imageUrl: '',
+    createdAt: daysAgo(240),
   },
   {
-    id: 'route-02',
-    name: 'Wandsworth',
-    areaName: 'Wandsworth',
-    coordinates: '51.4571, -0.1927',
-    eta: '10:40',
-    shiftId: 'shift-01',
-    assignedDriverId: 'emp-02',
-    order: 2,
-    status: 'active',
+    id: 'hub-02',
+    companyId: 'co-01',
+    name: 'London East',
+    code: 'LDN-02',
+    address: 'Unit 7, Hackney Wick Estate',
+    city: 'London',
+    imageUrl: '',
+    createdAt: daysAgo(180),
   },
   {
-    id: 'route-03',
-    name: 'Greenwich',
-    areaName: 'Greenwich',
-    coordinates: '51.4826, -0.0077',
-    eta: '23:05',
-    shiftId: 'shift-03',
-    assignedDriverId: 'emp-05',
-    order: 3,
-    status: 'planned',
-  },
-  {
-    id: 'route-04',
-    name: 'Camden Town',
-    areaName: 'Camden Town',
-    coordinates: '51.5390, -0.1426',
-    eta: '15:35',
-    shiftId: 'shift-02',
-    assignedDriverId: 'emp-03',
-    order: 4,
-    status: 'active',
-  },
-  {
-    id: 'route-05',
-    name: 'Hackney Central',
-    areaName: 'Hackney Central',
-    coordinates: '51.5470, -0.0554',
-    eta: '19:15',
-    shiftId: 'shift-02',
-    assignedDriverId: null,
-    order: 5,
-    status: 'planned',
+    id: 'hub-03',
+    companyId: 'co-02',
+    name: 'Manchester North',
+    code: 'MCR-01',
+    address: '22 Cheetham Hill Road',
+    city: 'Manchester',
+    imageUrl: '',
+    createdAt: daysAgo(96),
   },
 ];
 
-// ---- Products ----
-export const seedProducts: Product[] = [
-  {
-    id: 'p-01',
-    code: 'JDX-4A9C',
-    name: 'Ceramic dinnerware set',
-    type: 'Fragile',
-    stocks: 18,
-    assignedEmployeeId: 'emp-01',
-    arrivalInfo: 'Inbound van · 06 Jul 07:10',
-    shiftId: 'shift-01',
-    bayId: 'bay-01',
-    routeId: 'route-01',
-    deliveryStatus: 'pending',
-    status: 'out',
-    eta: '09:35',
-  },
-  {
-    id: 'p-02',
-    code: 'JDX-77B1',
-    name: 'Artisan sourdough (12)',
-    type: 'Baked',
-    stocks: 12,
-    assignedEmployeeId: 'emp-01',
-    arrivalInfo: 'Bakery dock · 06 Jul 05:40',
-    shiftId: 'shift-01',
-    bayId: 'bay-01',
-    routeId: 'route-01',
-    deliveryStatus: 'pending',
-    status: 'transit',
-    eta: '10:10',
-  },
-  {
-    id: 'p-03',
-    code: 'JDX-3C55',
-    name: 'Flat-pack shelving',
-    type: 'Packed',
-    stocks: 9,
-    assignedEmployeeId: 'emp-02',
-    arrivalInfo: 'Rail freight · 06 Jul 06:25',
-    shiftId: 'shift-01',
-    bayId: 'bay-02',
-    routeId: 'route-02',
-    deliveryStatus: 'pending',
-    status: 'picked',
-    eta: '09:55',
-  },
-  {
-    id: 'p-04',
-    code: 'JDX-8821',
-    name: 'Frozen seafood crate',
-    type: 'Frozen',
-    stocks: 6,
-    assignedEmployeeId: 'emp-02',
-    arrivalInfo: 'Cold chain · 06 Jul 06:50',
-    shiftId: 'shift-01',
-    bayId: 'bay-02',
-    routeId: 'route-02',
-    deliveryStatus: 'pending',
-    status: 'scheduled',
-    eta: '10:40',
-  },
-  {
-    id: 'p-05',
-    code: 'JDX-4417',
-    name: 'Office supplies carton',
-    type: 'Standard',
-    stocks: 20,
-    assignedEmployeeId: 'emp-07',
-    arrivalInfo: 'Inbound van · 06 Jul 07:30',
-    shiftId: 'shift-01',
-    bayId: 'bay-04',
-    routeId: 'route-01',
-    deliveryStatus: 'delivered',
-    status: 'delivered',
-    eta: '08:50',
-  },
-  {
-    id: 'p-06',
-    code: 'JDX-5B10',
-    name: 'Glassware pallet',
-    type: 'Fragile',
-    stocks: 8,
-    assignedEmployeeId: 'emp-03',
-    arrivalInfo: 'Kings Cross dock · 06 Jul 13:15',
-    shiftId: 'shift-02',
-    bayId: 'bay-03',
-    routeId: 'route-04',
-    deliveryStatus: 'pending',
-    status: 'scheduled',
-    eta: '15:35',
-  },
-  {
-    id: 'p-07',
-    code: 'JDX-6A2F',
-    name: 'Patisserie boxes (30)',
-    type: 'Baked',
-    stocks: 30,
-    assignedEmployeeId: 'emp-03',
-    arrivalInfo: 'Bakery dock · 06 Jul 12:50',
-    shiftId: 'shift-02',
-    bayId: 'bay-03',
-    routeId: 'route-04',
-    deliveryStatus: 'pending',
-    status: 'scheduled',
-    eta: '16:05',
-  },
-  {
-    id: 'p-08',
-    code: 'JDX-2D88',
-    name: 'Pharmacy cold pack',
-    type: 'Frozen',
-    stocks: 5,
-    assignedEmployeeId: null,
-    arrivalInfo: 'Cold chain · 06 Jul 13:40',
-    shiftId: 'shift-02',
-    bayId: 'bay-05',
-    routeId: 'route-05',
-    deliveryStatus: 'pending',
-    status: 'exception',
-    eta: '18:40',
-  },
-  {
-    id: 'p-09',
-    code: 'JDX-0E7A',
-    name: 'Retail apparel bundle',
-    type: 'Packed',
-    stocks: 15,
-    assignedEmployeeId: 'emp-05',
-    arrivalInfo: 'Inbound van · 06 Jul 21:20',
-    shiftId: 'shift-03',
-    bayId: 'bay-06',
-    routeId: 'route-03',
-    deliveryStatus: 'pending',
-    status: 'scheduled',
-    eta: '23:05',
-  },
-  {
-    id: 'p-10',
-    code: 'JDX-9F03',
-    name: 'Wine case (mixed)',
-    type: 'Fragile',
-    stocks: 10,
-    assignedEmployeeId: 'emp-01',
-    arrivalInfo: 'Inbound van · 06 Jul 07:05',
-    shiftId: 'shift-01',
-    bayId: 'bay-01',
-    routeId: 'route-01',
-    deliveryStatus: 'pending',
-    status: 'out',
-    eta: '10:45',
-  },
-  {
-    id: 'p-11',
-    code: 'JDX-1120',
-    name: 'Grocery essentials box',
-    type: 'Standard',
-    stocks: 22,
-    assignedEmployeeId: 'emp-07',
-    arrivalInfo: 'Inbound van · 06 Jul 07:35',
-    shiftId: 'shift-01',
-    bayId: 'bay-04',
-    routeId: 'route-01',
-    deliveryStatus: 'delivered',
-    status: 'delivered',
-    eta: '09:20',
-  },
-  {
-    id: 'p-12',
-    code: 'JDX-6650',
-    name: 'Electronics parcel',
-    type: 'Packed',
-    stocks: 7,
-    assignedEmployeeId: 'emp-02',
-    arrivalInfo: 'Rail freight · 06 Jul 06:30',
-    shiftId: 'shift-01',
-    bayId: 'bay-02',
-    routeId: 'route-02',
-    deliveryStatus: 'failed',
-    status: 'exception',
-    eta: '10:15',
-  },
-];
-
-// Populate each shift's product list from the seeded products. Per-shift stock
-// defaults to the product's own on-hand count, but is tracked independently
-// afterwards (see ShiftManagement).
-seedProducts.forEach((p) => {
-  if (!p.shiftId) return;
-  const shift = seedShifts.find((s) => s.id === p.shiftId);
-  if (shift) shift.products.push({ productId: p.id, stock: p.stocks });
+/* ── Employees ───────────────────────────────────────────────────────────── */
+const emp = (
+  id: string,
+  hubId: string,
+  name: string,
+  vehicleNo: string,
+  contactNo: string,
+  role: string,
+  status: Employee['status'],
+  monthlyPay: number,
+  joinedDaysAgo: number,
+  delivered: number,
+  errors: number,
+  email?: string,
+  password?: string
+): Employee => ({
+  id,
+  hubId,
+  name,
+  vehicleNo,
+  contactNo,
+  role,
+  status,
+  email,
+  password,
+  canMessage: ['hub-manager', 'hub-team-leader'],
+  monthlyPay,
+  joinedAt: daysAgo(joinedDaysAgo),
+  deliveredCount: delivered,
+  errorCount: errors,
+  history: [],
 });
 
-// ---- Leave requests ----
+export const seedEmployees: Employee[] = [
+  // hub-01 · Chennai Central
+  emp('emp-01', 'hub-01', 'Arjun Menon', 'TN-09-BX-4471', '+91 98407 21188', 'driver', 'full-time', 32000, 210, 34, 2, 'driver@gmail.com', 'driver@123'),
+  emp('emp-02', 'hub-01', 'Priya Ramesh', 'TN-07-CH-2093', '+91 99620 33471', 'driver', 'active', 30000, 150, 28, 3, 'priya@northwind.example', 'priya@123'),
+  emp('emp-03', 'hub-01', 'Meera Nair', 'TN-11-DK-1207', '+91 98847 66102', 'driver', 'active', 30000, 120, 30, 2, 'meera@northwind.example', 'meera@123'),
+  emp('emp-04', 'hub-01', 'Karthik Subramaniam', 'TN-01-AZ-8890', '+91 90031 55420', 'driver', 'leave', 29000, 90, 22, 4, 'karthik@northwind.example', 'karthik@123'),
+  emp('emp-05', 'hub-01', 'Grace Okafor', 'LB19 TRC', '+44 7700 900987', 'dispatcher', 'full-time', 38000, 200, 0, 0),
+  // A short-tenure leaver — drives Master's proration demo (worked 9 days).
+  emp('emp-06', 'hub-01', 'Rahul Verma', 'TN-05-QP-1180', '+91 90000 11223', 'driver', 'inactive', 28000, 9, 3, 1),
+
+  // hub-02 · London East
+  emp('emp-07', 'hub-02', 'David Whitmore', 'LK21 XJV', '+44 7700 900321', 'driver', 'active', 2600, 170, 41, 1, 'david@northwind.example', 'david@123'),
+  emp('emp-08', 'hub-02', 'Sara Iqbal', 'LG70 ZNP', '+44 7700 900654', 'driver', 'contract-based', 2400, 140, 19, 2, 'sara@northwind.example', 'sara@123'),
+  emp('emp-09', 'hub-02', 'Tom Bishop', 'LM22 WPD', '+44 7700 900112', 'dispatcher', 'full-time', 3100, 160, 0, 0),
+
+  // hub-03 · Manchester North (Meridian)
+  emp('emp-10', 'hub-03', 'Aisha Bello', 'MA19 KLT', '+44 7700 900777', 'driver', 'active', 2500, 80, 26, 1, 'aisha@meridian.example', 'aisha@123'),
+  emp('emp-11', 'hub-03', 'Liam Doyle', 'MB21 RRT', '+44 7700 900888', 'driver', 'full-time', 2550, 70, 18, 0, 'liam@meridian.example', 'liam@123'),
+];
+seedEmployees[5].resignedAt = daysAgo(1); // Rahul Verma left yesterday
+
+/* ── Credentials ─────────────────────────────────────────────────────────── */
+const cred = (
+  id: string,
+  role: Credential['role'],
+  email: string,
+  password: string,
+  companyId: string | null,
+  hubId: string | null,
+  hubCode: string,
+  employeeId: string | null = null
+): Credential => ({
+  id,
+  role,
+  companyId,
+  hubId,
+  employeeId,
+  email,
+  password,
+  hubCode,
+  blocked: false,
+  createdAt: daysAgo(200),
+});
+
+export const seedCredentials: Credential[] = [
+  cred('cr-master', 'master', 'master@jadvix.com', 'master@123', null, null, ''),
+  // Super admins
+  cred('cr-sa-01', 'super-admin', 'admin@gmail.com', 'admin@123', 'co-01', null, ''),
+  cred('cr-sa-02', 'super-admin', 'meridian@gmail.com', 'meridian@123', 'co-02', null, ''),
+  // Hub authorities — Northwind / Chennai
+  cred('cr-mgr-01', 'hub-manager', 'manager@gmail.com', 'manager@123', 'co-01', 'hub-01', 'CHN-01'),
+  cred('cr-tl-01', 'hub-team-leader', 'lead@gmail.com', 'lead@123', 'co-01', 'hub-01', 'CHN-01'),
+  cred('cr-fin-01', 'hub-finance', 'finance@gmail.com', 'finance@123', 'co-01', 'hub-01', 'CHN-01'),
+  // Hub authorities — Northwind / London
+  cred('cr-mgr-02', 'hub-manager', 'london@gmail.com', 'london@123', 'co-01', 'hub-02', 'LDN-02'),
+  // Drivers
+  cred('cr-drv-01', 'driver', 'driver@gmail.com', 'driver@123', 'co-01', 'hub-01', 'CHN-01', 'emp-01'),
+  cred('cr-drv-02', 'driver', 'priya@northwind.example', 'priya@123', 'co-01', 'hub-01', 'CHN-01', 'emp-02'),
+  cred('cr-drv-03', 'driver', 'meera@northwind.example', 'meera@123', 'co-01', 'hub-01', 'CHN-01', 'emp-03'),
+  cred('cr-drv-04', 'driver', 'karthik@northwind.example', 'karthik@123', 'co-01', 'hub-01', 'CHN-01', 'emp-04'),
+  cred('cr-drv-07', 'driver', 'david@northwind.example', 'david@123', 'co-01', 'hub-02', 'LDN-02', 'emp-07'),
+  cred('cr-drv-08', 'driver', 'sara@northwind.example', 'sara@123', 'co-01', 'hub-02', 'LDN-02', 'emp-08'),
+  cred('cr-drv-10', 'driver', 'aisha@meridian.example', 'aisha@123', 'co-02', 'hub-03', 'MCR-01', 'emp-10'),
+  cred('cr-drv-11', 'driver', 'liam@meridian.example', 'liam@123', 'co-02', 'hub-03', 'MCR-01', 'emp-11'),
+];
+
+/* ── Shifts (start time only) ────────────────────────────────────────────── */
+export const seedShifts: Shift[] = [
+  { id: 'sh-01', hubId: 'hub-01', name: 'Morning Wave', startTime: '06:00' },
+  { id: 'sh-02', hubId: 'hub-01', name: 'Afternoon Wave', startTime: '14:00' },
+  { id: 'sh-03', hubId: 'hub-01', name: 'Night Wave', startTime: '22:00' },
+  { id: 'sh-04', hubId: 'hub-02', name: 'Early Wave', startTime: '05:30' },
+  { id: 'sh-05', hubId: 'hub-02', name: 'Late Wave', startTime: '15:00' },
+  { id: 'sh-06', hubId: 'hub-03', name: 'Day Wave', startTime: '07:00' },
+];
+
+/* ── Locations ───────────────────────────────────────────────────────────── */
+export const seedRoutes: Route[] = [
+  { id: 'loc-01', hubId: 'hub-01', name: 'Adyar', areaName: 'Adyar', coordinates: '13.0067, 80.2570', eta: '09:40', order: 1, status: 'active' },
+  { id: 'loc-02', hubId: 'hub-01', name: 'T. Nagar', areaName: 'T. Nagar', coordinates: '13.0418, 80.2341', eta: '10:15', order: 2, status: 'active' },
+  { id: 'loc-03', hubId: 'hub-01', name: 'Velachery', areaName: 'Velachery', coordinates: '12.9750, 80.2210', eta: '11:05', order: 3, status: 'planned' },
+  { id: 'loc-04', hubId: 'hub-01', name: 'Anna Nagar', areaName: 'Anna Nagar', coordinates: '13.0850, 80.2101', eta: '12:30', order: 4, status: 'planned' },
+  { id: 'loc-05', hubId: 'hub-02', name: 'Islington', areaName: 'Islington', coordinates: '51.5465, -0.1058', eta: '10:10', order: 1, status: 'active' },
+  { id: 'loc-06', hubId: 'hub-02', name: 'Camden Town', areaName: 'Camden Town', coordinates: '51.5390, -0.1426', eta: '11:35', order: 2, status: 'planned' },
+  { id: 'loc-07', hubId: 'hub-03', name: 'Salford', areaName: 'Salford', coordinates: '53.4875, -2.2901', eta: '09:20', order: 1, status: 'active' },
+];
+
+/* ── Products ────────────────────────────────────────────────────────────── */
+const prod = (
+  id: string,
+  hubId: string,
+  code: string,
+  name: string,
+  type: string,
+  status: Product['status'],
+  deliveryStatus: Product['deliveryStatus']
+): Product => ({ id, hubId, code, name, type, status, deliveryStatus });
+
+export const seedProducts: Product[] = [
+  prod('p-01', 'hub-01', 'JDX-4A9C', 'Ceramic dinnerware set', 'Fragile', 'out', 'pending'),
+  prod('p-02', 'hub-01', 'JDX-77B1', 'Artisan sourdough (12)', 'Baked', 'transit', 'pending'),
+  prod('p-03', 'hub-01', 'JDX-3C55', 'Flat-pack shelving', 'Packed', 'picked', 'pending'),
+  prod('p-04', 'hub-01', 'JDX-8821', 'Frozen seafood crate', 'Frozen', 'scheduled', 'pending'),
+  prod('p-05', 'hub-01', 'JDX-4417', 'Office supplies carton', 'Standard', 'delivered', 'delivered'),
+  prod('p-06', 'hub-01', 'JDX-6650', 'Electronics parcel', 'Packed', 'exception', 'failed'),
+  prod('p-07', 'hub-01', 'JDX-9F03', 'Wine case (mixed)', 'Fragile', 'out', 'pending'),
+  prod('p-08', 'hub-02', 'JDX-5B10', 'Glassware pallet', 'Fragile', 'scheduled', 'pending'),
+  prod('p-09', 'hub-02', 'JDX-6A2F', 'Patisserie boxes (30)', 'Baked', 'picked', 'pending'),
+  prod('p-10', 'hub-03', 'JDX-0E7A', 'Retail apparel bundle', 'Packed', 'scheduled', 'pending'),
+];
+
+/* ── Bays ────────────────────────────────────────────────────────────────── */
+/** Today's staged bays for the demo hub, plus a completed (frozen) yesterday. */
+const bay = (
+  id: string,
+  hubId: string,
+  shiftId: string,
+  date: string,
+  number: number,
+  driverId: string | null,
+  vehicleNo: string,
+  productId: string | null,
+  routeId: string | null,
+  status: Bay['status'],
+  completed = false
+): Bay => ({
+  id,
+  hubId,
+  shiftId,
+  date,
+  number,
+  assignedDriverId: driverId,
+  vehicleNo,
+  productId,
+  routeId,
+  status,
+  completed,
+  completedAt: completed ? nowIso() : undefined,
+});
+
+export const seedBays: Bay[] = [
+  // Today — Morning Wave @ Chennai
+  bay('bay-01', 'hub-01', 'sh-01', today(), 1, 'emp-01', 'TN-09-BX-4471', 'p-01', 'loc-01', 'active'),
+  bay('bay-02', 'hub-01', 'sh-01', today(), 2, 'emp-02', 'TN-07-CH-2093', 'p-03', 'loc-02', 'ready'),
+  bay('bay-03', 'hub-01', 'sh-01', today(), 3, 'emp-03', 'TN-11-DK-1207', 'p-05', 'loc-03', 'shipped'),
+  // Today — Afternoon Wave @ Chennai
+  bay('bay-04', 'hub-01', 'sh-02', today(), 1, null, '', 'p-04', 'loc-04', 'active'),
+  // Yesterday — completed & frozen (calendar / duplicate demo)
+  bay('bay-05', 'hub-01', 'sh-01', daysAgo(1), 1, 'emp-01', 'TN-09-BX-4471', 'p-02', 'loc-01', 'shipped', true),
+  bay('bay-06', 'hub-01', 'sh-01', daysAgo(1), 2, 'emp-02', 'TN-07-CH-2093', 'p-07', 'loc-02', 'shipped', true),
+  // London East today
+  bay('bay-07', 'hub-02', 'sh-04', today(), 1, 'emp-07', 'LK21 XJV', 'p-08', 'loc-05', 'active'),
+  // Manchester today
+  bay('bay-08', 'hub-03', 'sh-06', today(), 1, 'emp-10', 'MA19 KLT', 'p-10', 'loc-07', 'ready'),
+];
+
+/* ── Check-ins ───────────────────────────────────────────────────────────── */
+const PH = 'photo'; // placeholder marker — real check-ins store data URIs
+export const seedCheckIns: CheckIn[] = [
+  {
+    id: 'ci-01',
+    hubId: 'hub-01',
+    employeeId: 'emp-01',
+    date: today(),
+    photos: { front: PH, back: PH, left: PH, right: PH },
+    createdAt: nowIso(),
+  },
+  {
+    id: 'ci-02',
+    hubId: 'hub-01',
+    employeeId: 'emp-02',
+    date: today(),
+    photos: { front: PH, back: PH, left: PH, right: PH },
+    createdAt: nowIso(),
+  },
+  // emp-03 (Meera) has NOT checked in for 2 days → triggers a reminder
+  {
+    id: 'ci-03',
+    hubId: 'hub-01',
+    employeeId: 'emp-03',
+    date: daysAgo(3),
+    photos: { front: PH, back: PH, left: PH, right: PH },
+    createdAt: nowIso(),
+  },
+];
+
+/* ── Leave ───────────────────────────────────────────────────────────────── */
 export const seedLeaveRequests: LeaveRequest[] = [
-  {
-    id: 'lr-01',
-    employeeId: 'emp-04',
-    from: '2026-07-04',
-    to: '2026-07-08',
-    reason: 'Family commitment',
-    status: 'approved',
-  },
-  {
-    id: 'lr-02',
-    employeeId: 'emp-05',
-    from: '2026-07-12',
-    to: '2026-07-13',
-    reason: 'Medical appointment',
-    status: 'pending',
-  },
+  { id: 'lv-01', hubId: 'hub-01', employeeId: 'emp-04', from: daysAgo(1), to: daysAgo(-2), reason: 'Family commitment', status: 'approved' },
+  { id: 'lv-02', hubId: 'hub-01', employeeId: 'emp-02', from: daysAgo(-4), to: daysAgo(-5), reason: 'Medical appointment', status: 'pending' },
+  { id: 'lv-03', hubId: 'hub-02', employeeId: 'emp-08', from: daysAgo(-7), to: daysAgo(-8), reason: 'Personal', status: 'pending' },
 ];
 
-// ---- Messages (shared channel) ----
+/* ── Messages ────────────────────────────────────────────────────────────── */
 export const seedMessages: Message[] = [
-  {
-    id: 'm-01',
-    from: 'dispatch',
-    authorId: 'emp-06',
-    text: 'Morning shift is live. Confirm bay loads before rolling out.',
-    time: '09:58',
-  },
-  {
-    id: 'm-02',
-    from: 'driver',
-    authorId: 'emp-01',
-    text: 'Bay 1 loaded, 18 of 24. Heading to Islington.',
-    time: '10:02',
-  },
-  {
-    id: 'm-03',
-    from: 'dispatch',
-    authorId: 'emp-06',
-    text: 'Noted. JDX-77B1 is time-sensitive, prioritise it.',
-    time: '10:04',
-  },
+  { id: 'ms-01', hubId: 'hub-01', fromId: 'hub-01:hub-manager', fromRole: 'hub-manager', toId: 'emp-01', text: 'Morning wave is live — confirm your bay load before rolling out.', time: '06:12', createdAt: nowIso() },
+  { id: 'ms-02', hubId: 'hub-01', fromId: 'emp-01', fromRole: 'driver', toId: 'hub-01:hub-manager', text: 'Bay 1 loaded. Heading to Adyar now.', time: '06:20', createdAt: nowIso() },
+  { id: 'ms-03', hubId: 'hub-01', fromId: 'hub-01:hub-manager', fromRole: 'hub-manager', toId: 'emp-01', text: 'Noted. JDX-4A9C is fragile — handle with care.', time: '06:22', createdAt: nowIso() },
 ];
 
-// ---- Vehicle tickets ----
+/* ── Vehicle tickets ─────────────────────────────────────────────────────── */
 export const seedVehicleTickets: VehicleTicket[] = [
+  { id: 'vt-01', hubId: 'hub-01', employeeId: 'emp-01', vehicleNo: 'TN-09-BX-4471', subject: 'Flat tyre, front left', notes: 'Punctured by a nail near Adyar depot.', photoAttached: true, status: 'submitted', adminRemarks: '', createdAt: nowIso(), updatedAt: nowIso() },
+  { id: 'vt-02', hubId: 'hub-01', employeeId: 'emp-02', vehicleNo: 'TN-07-CH-2093', subject: 'Engine rattle above 40mph', notes: 'Persistent rattling sound from the engine bay.', photoAttached: false, status: 'reviewed', adminRemarks: 'Booked into the workshop after today’s shift.', createdAt: nowIso(), updatedAt: nowIso() },
+];
+
+/* ── Queries ─────────────────────────────────────────────────────────────── */
+export const seedQueries: QueryTicket[] = [
+  { id: 'q-01', hubId: 'hub-01', type: 'delivery-error', subject: 'Parcel delivered to wrong door', body: 'JDX-6650 was left at 14B instead of 14A. Customer called the hub.', raisedById: 'hub-team-leader', raisedByRole: 'hub-team-leader', offenderEmployeeId: 'emp-02', status: 'investigating', response: '', createdAt: nowIso(), updatedAt: nowIso() },
+  { id: 'q-02', hubId: 'hub-01', type: 'salary-mismatch', subject: 'Overtime not counted in June', body: 'Two night runs are missing from my June payslip.', raisedById: 'emp-01', raisedByRole: 'driver', offenderEmployeeId: null, status: 'open', response: '', createdAt: nowIso(), updatedAt: nowIso() },
+];
+
+/* ── Reminders ───────────────────────────────────────────────────────────── */
+export const seedReminders: Reminder[] = [
+  { id: 'rm-01', hubId: 'hub-01', type: 'leave-request', title: 'Leave request awaiting review', body: 'Priya Ramesh requested leave.', forRoles: ['hub-manager', 'hub-team-leader', 'hub-finance'], read: false, createdAt: nowIso(), link: '/app/leave' },
+  { id: 'rm-02', hubId: 'hub-01', type: 'query', title: 'Delivery error under investigation', body: 'JDX-6650 delivered to the wrong address.', forRoles: ['hub-manager', 'hub-team-leader'], read: false, createdAt: nowIso(), link: '/app/queries' },
+];
+
+/* ── Money ───────────────────────────────────────────────────────────────── */
+export const seedPenalties: Penalty[] = [
+  { id: 'pn-01', hubId: 'hub-01', employeeId: 'emp-02', reason: 'Delivery error — JDX-6650 wrong address', amount: 500, date: daysAgo(2), status: 'applied' },
+  { id: 'pn-02', hubId: 'hub-01', employeeId: 'emp-04', reason: 'Late check-in (3 occurrences)', amount: 300, date: daysAgo(5), status: 'pending' },
+];
+
+export const seedPayslips: Payslip[] = [
+  { id: 'ps-01', hubId: 'hub-01', employeeId: 'emp-01', period: currentPeriod(), cadence: 'monthly', baseAmount: 32000, penalties: 0, net: 32000, status: 'issued', issuedAt: nowIso() },
+  { id: 'ps-02', hubId: 'hub-01', employeeId: 'emp-02', period: currentPeriod(), cadence: 'monthly', baseAmount: 30000, penalties: 500, net: 29500, status: 'draft', issuedAt: nowIso() },
+];
+
+export const seedInvoices: Invoice[] = [
   {
-    id: 'vt-01',
-    employeeId: 'emp-01', // Arjun Menon
-    vehicleNo: 'TN-09-BX-4471',
-    subject: 'Flat tire on front left',
-    notes: 'Punctured by a nail while taking a shortcut near Islington loop.',
-    photoAttached: true,
-    status: 'submitted',
-    adminRemarks: '',
-    createdAt: '2026-07-08T08:30:00Z',
-    updatedAt: '2026-07-08T08:30:00Z',
-  },
-  {
-    id: 'vt-02',
-    employeeId: 'emp-02', // Priya Ramesh
-    vehicleNo: 'TN-07-CH-2093',
-    subject: 'Engine making unusual noise',
-    notes: 'Rattling sound from engine when driving above 40mph. Needs checking.',
-    photoAttached: false,
-    status: 'reviewed',
-    adminRemarks: 'We will inspect it after your shift today.',
-    createdAt: '2026-07-07T14:15:00Z',
-    updatedAt: '2026-07-07T15:00:00Z',
+    id: 'inv-01',
+    companyId: 'co-01',
+    period: currentPeriod(),
+    lines: [
+      { label: 'Platform setup fee', qty: 1, unit: 15000, amount: 15000 },
+      { label: 'Hubs', qty: 2, unit: 8000, amount: 16000 },
+      { label: 'Employees', qty: 9, unit: 350, amount: 3150 },
+    ],
+    total: 34150,
+    status: 'sent',
+    issuedAt: nowIso(),
   },
 ];

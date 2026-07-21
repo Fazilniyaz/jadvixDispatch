@@ -1,85 +1,119 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense, useEffect, type ComponentType } from 'react';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { useThemeEffect } from '@/store/useTheme';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { useStore, usePermittedModules } from '@/store/useStore';
+import { PortalShell } from '@/components/PortalShell';
+import type { ModuleKey } from '@/lib/types';
 
-// Landing page is retained for future use but disabled for now — "/" goes
-// straight to the login screen. Re-enable by restoring the import and the
-// route below.
-// import Landing from '@/pages/Landing';
-import Signup from '@/pages/Signup';
+// Landing page is retained in src/pages/Landing.tsx but not routed — "/" goes
+// straight to the login screen.
 import Login from '@/pages/Login';
 
-import AdminLayout from '@/portals/admin/AdminLayout';
-import Dashboard from '@/portals/admin/Dashboard';
-import Stats from '@/portals/shared/Stats';
-import ProductManagement from '@/portals/admin/ProductManagement';
-import EmployeeManagement from '@/portals/admin/EmployeeManagement';
-import ShiftManagement from '@/portals/admin/ShiftManagement';
-import BayManagement from '@/portals/admin/BayManagement';
-import RouteManagement from '@/portals/admin/RouteManagement';
-import LeaveRequests from '@/portals/admin/LeaveRequests';
-import Communication from '@/portals/admin/Communication';
-import VehicleManagement from '@/portals/admin/VehicleManagement';
-import Settings from '@/portals/shared/Settings';
+const Dashboard = lazy(() => import('@/modules/Dashboard'));
+const Companies = lazy(() => import('@/modules/Companies'));
+const Invoices = lazy(() => import('@/modules/Invoices'));
+const Hubs = lazy(() => import('@/modules/Hubs'));
+const Stats = lazy(() => import('@/modules/Stats'));
+const Products = lazy(() => import('@/modules/Products'));
+const Employees = lazy(() => import('@/modules/Employees'));
+const Shifts = lazy(() => import('@/modules/Shifts'));
+const Bays = lazy(() => import('@/modules/Bays'));
+const Locations = lazy(() => import('@/modules/Locations'));
+const Leave = lazy(() => import('@/modules/Leave'));
+const Communication = lazy(() => import('@/modules/Communication'));
+const Vehicles = lazy(() => import('@/modules/Vehicles'));
+const Salary = lazy(() => import('@/modules/Salary'));
+const Billing = lazy(() => import('@/modules/Billing'));
+const Queries = lazy(() => import('@/modules/Queries'));
+const RemindersPage = lazy(() => import('@/modules/Reminders'));
+const SettingsPage = lazy(() => import('@/modules/Settings'));
 
-import DriverLayout from '@/portals/driver/DriverLayout';
-import Today from '@/portals/driver/Today';
-import MyPerformance from '@/portals/driver/MyPerformance';
-import MyRoute from '@/portals/driver/MyRoute';
-import DriverCommunication from '@/portals/driver/DriverCommunication';
-import MyVehicles from '@/portals/driver/MyVehicles';
-import Leave from '@/portals/driver/Leave';
+const REGISTRY: Record<ModuleKey, ComponentType> = {
+  dashboard: Dashboard,
+  companies: Companies,
+  invoices: Invoices,
+  hubs: Hubs,
+  stats: Stats,
+  products: Products,
+  employees: Employees,
+  shifts: Shifts,
+  bays: Bays,
+  locations: Locations,
+  leave: Leave,
+  communication: Communication,
+  vehicles: Vehicles,
+  salary: Salary,
+  billing: Billing,
+  queries: Queries,
+  reminders: RemindersPage,
+  settings: SettingsPage,
+};
+
+function Fallback() {
+  return (
+    <div className="grid place-items-center py-24">
+      <span className="font-mono text-2xs uppercase tracking-[0.2em] text-muted animate-pulse">
+        Loading…
+      </span>
+    </div>
+  );
+}
+
+/** Renders the module named in the URL, if the signed-in role may open it. */
+function ModuleRoute() {
+  const { moduleKey } = useParams<{ moduleKey: string }>();
+  const permitted = usePermittedModules();
+  const key = moduleKey as ModuleKey;
+  const Component = key ? REGISTRY[key] : undefined;
+
+  if (!Component) return <Navigate to="/app/dashboard" replace />;
+  if (!permitted.includes(key)) {
+    return (
+      <div className="border border-border rounded-[4px] bg-surface p-10 text-center">
+        <h2 className="font-display text-xl font-semibold text-text">Module not available</h2>
+        <p className="mt-2 text-[13px] text-text-2 max-w-sm mx-auto">
+          Your role doesn’t have access to this module. Ask your Super Admin to enable it in
+          Settings → Portal access.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <Suspense fallback={<Fallback />}>
+      <Component />
+    </Suspense>
+  );
+}
+
+function AppArea() {
+  const user = useStore((s) => s.user);
+  const syncMissed = useStore((s) => s.syncMissedCheckInReminders);
+
+  // Stands in for the server job that watches for missed check-ins.
+  useEffect(() => {
+    if (user) syncMissed();
+  }, [user, syncMissed]);
+
+  if (!user) return <Navigate to="/login" replace />;
+
+  return (
+    <PortalShell>
+      <Routes>
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path=":moduleKey" element={<ModuleRoute />} />
+        <Route path="*" element={<Navigate to="dashboard" replace />} />
+      </Routes>
+    </PortalShell>
+  );
+}
 
 export default function App() {
   useThemeEffect();
-
   return (
     <Routes>
-      {/* Landing page disabled for now — kept in src/pages/Landing.tsx for future use.
-          <Route path="/" element={<Landing />} /> */}
       <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
-
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute role="admin">
-            <AdminLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Dashboard />} />
-        <Route path="stats" element={<Stats />} />
-        <Route path="products" element={<ProductManagement />} />
-        <Route path="employees" element={<EmployeeManagement />} />
-        <Route path="shifts" element={<ShiftManagement />} />
-        <Route path="bays" element={<BayManagement />} />
-        <Route path="routes" element={<RouteManagement />} />
-        <Route path="leave" element={<LeaveRequests />} />
-        <Route path="communication" element={<Communication />} />
-        <Route path="vehicles" element={<VehicleManagement />} />
-        <Route path="settings" element={<Settings />} />
-      </Route>
-
-      <Route
-        path="/driver"
-        element={
-          <ProtectedRoute role="driver">
-            <DriverLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Today />} />
-        <Route path="stats" element={<Stats />} />
-        <Route path="performance" element={<MyPerformance />} />
-        <Route path="route" element={<MyRoute />} />
-        <Route path="communication" element={<DriverCommunication />} />
-        <Route path="vehicles" element={<MyVehicles />} />
-        <Route path="leave" element={<Leave />} />
-        <Route path="settings" element={<Settings />} />
-      </Route>
-
+      <Route path="/app/*" element={<AppArea />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

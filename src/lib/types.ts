@@ -1,37 +1,114 @@
-// Domain types for Jadvix Dispatch.
+// ─────────────────────────────────────────────────────────────────────────────
+// Jadvix HubOS — domain model
+//
+// Tenancy: Master (Jadvix)  →  Company (Super Admin)  →  Hub  →  people.
+// Almost every operational record carries a `hubId`; the store scopes reads to
+// the currently selected hub so every module shows one hub at a time.
+// ─────────────────────────────────────────────────────────────────────────────
 
-export type Role = 'admin' | 'driver';
+/* ── Roles & access ─────────────────────────────────────────────────────── */
 
-// Built-in types plus any custom types added from Product Management.
-export type ProductType = 'Fragile' | 'Baked' | 'Packed' | 'Frozen' | 'Standard' | (string & {});
-export type DeliveryStatus = 'pending' | 'delivered' | 'failed';
-export type ProductStatus =
-  | 'scheduled'
-  | 'picked'
-  | 'transit'
-  | 'out'
-  | 'delivered'
-  | 'exception';
+export type Role =
+  | 'master'
+  | 'super-admin'
+  | 'hub-manager'
+  | 'hub-team-leader'
+  | 'hub-finance'
+  | 'driver';
 
-export interface Product {
+export const HUB_AUTHORITY_ROLES: Role[] = ['hub-manager', 'hub-team-leader', 'hub-finance'];
+
+export const ROLE_LABELS: Record<Role, string> = {
+  master: 'Master',
+  'super-admin': 'Super Admin',
+  'hub-manager': 'Hub Manager',
+  'hub-team-leader': 'Team Leader',
+  'hub-finance': 'HR & Finance',
+  driver: 'Driver',
+};
+
+export type ModuleKey =
+  | 'dashboard'
+  | 'stats'
+  | 'hubs'
+  | 'products'
+  | 'employees'
+  | 'shifts'
+  | 'bays'
+  | 'locations'
+  | 'leave'
+  | 'communication'
+  | 'vehicles'
+  | 'salary'
+  | 'billing'
+  | 'queries'
+  | 'reminders'
+  | 'companies'
+  | 'invoices'
+  | 'settings';
+
+/** Which modules a role may open, per company. Super Admin edits this. */
+export type PermissionMap = Record<Role, ModuleKey[]>;
+
+/* ── Tenancy ────────────────────────────────────────────────────────────── */
+
+export type CompanyStatus = 'active' | 'suspended';
+
+export interface Company {
   id: string;
-  code: string; // mono product code
   name: string;
-  type: ProductType;
-  stocks: number; // units of this product on hand
-  assignedEmployeeId: string | null;
-  arrivalInfo: string; // how / when received
-  shiftId: string | null;
-  bayId: string | null;
-  routeId: string | null;
-  deliveryStatus: DeliveryStatus;
-  status: ProductStatus;
-  eta: string;
+  code: string;            // short tenant code, e.g. NORTHWIND
+  contactEmail: string;
+  city: string;
+  status: CompanyStatus;
+  createdAt: string;       // ISO
+  // Commercial terms charged by Jadvix (Master portal).
+  setupFee: number;        // recurring monthly platform fee
+  perHubFee: number;       // per hub, per month
+  perEmployeeFee: number;  // per employee, per month
 }
 
-// Built-in roles plus any custom role label entered when creating an employee.
+export interface Hub {
+  id: string;
+  companyId: string;
+  name: string;
+  code: string;            // hub code used in credentials
+  address: string;
+  city: string;
+  imageUrl: string;        // remote or data URI; may be empty
+  createdAt: string;
+}
+
+/* ── Credentials ────────────────────────────────────────────────────────── */
+
+export interface Credential {
+  id: string;
+  role: Role;
+  /** Master has neither; Super Admin has companyId; hub roles + drivers have both. */
+  companyId: string | null;
+  hubId: string | null;
+  employeeId: string | null; // drivers link to their Employee record
+  email: string;
+  password: string;
+  hubCode: string;           // blank for master / super-admin
+  blocked: boolean;
+  createdAt: string;
+}
+
+export interface AuthUser {
+  credentialId: string;
+  role: Role;
+  companyId: string | null;
+  hubId: string | null;
+  employeeId: string | null;
+  name: string;
+  email: string;
+}
+
+/* ── People ─────────────────────────────────────────────────────────────── */
+
 export type EmployeeRole = 'driver' | 'dispatcher' | (string & {});
-// Flat status enum: mixes employment type and working state, per requirement.
+
 export type EmployeeStatus =
   | 'full-time'
   | 'contract-based'
@@ -47,131 +124,236 @@ export interface DeliveryRecord {
 
 export interface Employee {
   id: string;
+  hubId: string;
   name: string;
   vehicleNo: string;
   contactNo: string;
   role: EmployeeRole;
-  shift: string; // retained for Bay Management to orchestrate; not shown in Employee Management
   status: EmployeeStatus;
-  // Login credentials for drivers, set by admin. A driver with an email + password
-  // (and a non-'inactive' status) can sign in to the driver portal.
+  // Portal login (drivers). Mirrored into a Credential when set.
   email?: string;
   password?: string;
+  /** Roles this person is allowed to message. Super Admin decides. */
+  canMessage: Role[];
+  // Payroll inputs
+  monthlyPay: number;
+  joinedAt: string;          // ISO date — drives Master's leaver proration
+  resignedAt?: string;       // ISO date when they left
   deliveredCount: number;
-  errorCount: number; // failed / exception deliveries
-  recentBayIds: string[];
-  recentRouteIds: string[];
+  errorCount: number;
   history: DeliveryRecord[];
 }
 
-// Each shift runs as a single wave, so its status lives on the shift itself.
-export type ShiftStatus = 'pending' | 'active' | 'completed';
+/* ── Operations ─────────────────────────────────────────────────────────── */
 
-// A product staged on a shift with the stock allocated to it for that shift.
-export interface ShiftProduct {
-  productId: string;
-  stock: number;
+export type ProductType = 'Fragile' | 'Baked' | 'Packed' | 'Frozen' | 'Standard' | (string & {});
+export type DeliveryStatus = 'pending' | 'delivered' | 'failed';
+export type ProductStatus =
+  | 'scheduled'
+  | 'picked'
+  | 'transit'
+  | 'out'
+  | 'delivered'
+  | 'exception';
+
+export interface Product {
+  id: string;
+  hubId: string;
+  code: string;
+  name: string;
+  type: ProductType;
+  status: ProductStatus;
+  deliveryStatus: DeliveryStatus;
 }
 
+/** A shift has a START TIME ONLY — no end time. */
 export interface Shift {
   id: string;
-  name: string; // Morning | Afternoon | Night
-  window: string;
-  status: ShiftStatus;
-  products: ShiftProduct[]; // products + stocks running under this shift
-}
-
-// Bay Management is the hub that reconnects the independent modules. A bay row
-// directly holds its own employee, product, location and status.
-export type BayStatus = 'active' | 'shipped' | 'ready';
-
-export interface Bay {
-  id: string;
-  number: number; // per-shift bay number (1..maxBays), set by order / drag-and-drop
-  shiftId: string | null; // which shift tab this bay belongs to
-  assignedDriverId: string | null; // employee staffed on this bay
-  vehicleNo: string; // mirrors the assigned driver's vehicle
-  productId: string | null; // product staged in this bay
-  routeId: string | null; // delivery location for this bay
-  status: BayStatus;
-  stocks: number; // number of items staged in the bay
-  date: string; // yyyy-mm-dd the bay was staged for
-}
-
-// A single delivery point (area + coordinates + ETA).
-export interface RouteStop {
-  areaName: string;
-  coordinates: string; // "13.02, 80.22"
-  eta: string;
+  hubId: string;
+  name: string;
+  startTime: string; // "HH:MM"
 }
 
 export type RouteStatus = 'planned' | 'active' | 'completed';
 
-// A location is a single delivery point that belongs to a shift.
+/** A location is a single delivery point. */
 export interface Route {
   id: string;
+  hubId: string;
   name: string;
   areaName: string;
-  coordinates: string; // "13.02, 80.22"
+  coordinates: string;
   eta: string;
-  shiftId: string | null;
-  assignedDriverId: string | null;
   order: number;
   status: RouteStatus;
 }
+
+export type BayStatus = 'active' | 'shipped' | 'ready';
+
+/**
+ * The hub of the system. A bay row for a given shift + date ties together an
+ * employee, a product and a location. Once its day is completed it is frozen.
+ */
+export interface Bay {
+  id: string;
+  hubId: string;
+  shiftId: string | null;
+  date: string;              // yyyy-mm-dd
+  number: number;            // per shift+date, 1..maxBays
+  assignedDriverId: string | null;
+  vehicleNo: string;
+  productId: string | null;
+  routeId: string | null;
+  status: BayStatus;
+  completed: boolean;        // frozen / immutable
+  completedAt?: string;
+}
+
+/* ── Attendance & vehicles ──────────────────────────────────────────────── */
+
+export interface CheckIn {
+  id: string;
+  hubId: string;
+  employeeId: string;
+  date: string;              // yyyy-mm-dd
+  /** Four sides — data URIs or placeholder markers. */
+  photos: { front: string; back: string; left: string; right: string };
+  createdAt: string;
+}
+
+export type VehicleTicketStatus = 'submitted' | 'reviewed' | 'accepted' | 'failed';
+
+export interface VehicleTicket {
+  id: string;
+  hubId: string;
+  employeeId: string;
+  vehicleNo: string;
+  subject: string;
+  notes: string;
+  photoAttached: boolean;
+  status: VehicleTicketStatus;
+  adminRemarks: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/* ── Leave ──────────────────────────────────────────────────────────────── */
 
 export type LeaveStatus = 'pending' | 'approved' | 'rejected';
 
 export interface LeaveRequest {
   id: string;
+  hubId: string;
   employeeId: string;
   from: string;
   to: string;
   reason: string;
   status: LeaveStatus;
+  decidedBy?: string;
 }
+
+/* ── Communication ──────────────────────────────────────────────────────── */
 
 export interface Message {
   id: string;
-  from: 'dispatch' | 'driver';
-  authorId: string;
+  hubId: string;
+  /** Employee id for drivers, or a role key for authorities. */
+  fromId: string;
+  fromRole: Role;
+  toId: string;
   text: string;
   time: string;
+  createdAt: string;
 }
 
-// Vehicle repair tickets submitted by drivers and reviewed by admin.
-export type VehicleTicketStatus = 'submitted' | 'reviewed' | 'accepted' | 'failed';
+/* ── Queries (incidents) ────────────────────────────────────────────────── */
 
-export interface VehicleTicket {
+export type QueryType = 'accident' | 'salary-mismatch' | 'delivery-error' | 'fraud' | 'other';
+export type QueryStatus = 'open' | 'investigating' | 'resolved' | 'dismissed';
+
+export interface QueryTicket {
   id: string;
-  employeeId: string;        // the driver who submitted
-  vehicleNo: string;
-  subject: string;            // short title
-  notes: string;              // description of the repair
-  photoAttached: boolean;     // whether a photo was attached
-  status: VehicleTicketStatus;
-  adminRemarks: string;       // admin can add remarks during review
-  createdAt: string;          // ISO date string
-  updatedAt: string;          // ISO date string
+  hubId: string;
+  type: QueryType;
+  subject: string;
+  body: string;
+  raisedById: string;        // employee id or role key
+  raisedByRole: Role;
+  /** When set, the employee at fault — name is hidden from other drivers. */
+  offenderEmployeeId: string | null;
+  status: QueryStatus;
+  response: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export type ModuleKey =
-  | 'dashboard'
-  | 'products'
-  | 'employees'
-  | 'shifts'
-  | 'bays'
-  | 'routes'
-  | 'leave'
-  | 'communication'
-  | 'vehicles'
-  | 'settings';
+/* ── Reminders ──────────────────────────────────────────────────────────── */
+
+export type ReminderType = 'leave-request' | 'missed-checkin' | 'query' | 'billing' | 'notice';
+
+export interface Reminder {
+  id: string;
+  hubId: string;
+  type: ReminderType;
+  title: string;
+  body: string;
+  /** Who should see it. */
+  forRoles: Role[];
+  forEmployeeId?: string;
+  read: boolean;
+  createdAt: string;
+  link?: string;
+}
+
+/* ── Money ──────────────────────────────────────────────────────────────── */
+
+export type PayrollStatus = 'draft' | 'issued' | 'paid';
+
+export interface Payslip {
+  id: string;
+  hubId: string;
+  employeeId: string;
+  period: string;            // "2026-07" or "2026-W29"
+  cadence: 'monthly' | 'weekly';
+  baseAmount: number;
+  penalties: number;
+  net: number;
+  status: PayrollStatus;
+  issuedAt: string;
+}
+
+export type PenaltyStatus = 'pending' | 'applied' | 'waived';
+
+export interface Penalty {
+  id: string;
+  hubId: string;
+  employeeId: string;
+  reason: string;
+  amount: number;
+  date: string;
+  status: PenaltyStatus;
+}
+
+/** Master → Company invoice. */
+export type InvoiceStatus = 'draft' | 'sent' | 'paid' | 'overdue';
+
+export interface InvoiceLine {
+  label: string;
+  qty: number;
+  unit: number;
+  amount: number;
+}
+
+export interface Invoice {
+  id: string;
+  companyId: string;
+  period: string;            // "2026-07"
+  lines: InvoiceLine[];
+  total: number;
+  status: InvoiceStatus;
+  issuedAt: string;
+}
+
+/* ── Misc ───────────────────────────────────────────────────────────────── */
 
 export type ModuleLabels = Record<ModuleKey, string>;
-
-export interface AuthUser {
-  email: string;
-  role: Role;
-  employeeId: string | null;
-  name: string;
-}
