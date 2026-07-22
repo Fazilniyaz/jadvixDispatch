@@ -14,6 +14,7 @@ import {
   Users,
   Warehouse,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/PageHeader';
 import { Card, CardHeader } from '@/components/Card';
 import { KpiTile } from '@/components/KpiTile';
@@ -245,13 +246,27 @@ function DriverDashboard() {
 
   if (!me) return null;
 
-  // The wiring: whatever a manager assigned in Bay Management shows up here.
-  const myBay = bays.find((b) => b.assignedDriverId === me.id);
-  const myShift = myBay ? shifts.find((s) => s.id === myBay.shiftId) : null;
+  const away = onLeave(me, leave);
+
+  // Every bay assigned to me today, in the order the waves actually run.
+  const myAssignments = away
+    ? []
+    : bays
+        .filter((b) => b.assignedDriverId === me.id)
+        .map((b) => ({ bay: b, shift: shifts.find((s) => s.id === b.shiftId) ?? null }))
+        .sort((a, z) => (a.shift?.startTime ?? '').localeCompare(z.shift?.startTime ?? ''));
+
+  // Show the wave I'm on now — the earliest one that hasn't been completed.
+  // Once a manager completes the Morning wave, this rolls on to the next.
+  const currentIdx = myAssignments.findIndex((a) => !a.bay.completed);
+  const current = currentIdx >= 0 ? myAssignments[currentIdx] : null;
+  const allDone = myAssignments.length > 0 && currentIdx === -1;
+
+  const myBay = current?.bay;
+  const myShift = current?.shift ?? null;
   const myRoute = myBay ? routes.find((r) => r.id === myBay.routeId) : null;
   const myProduct = myBay ? products.find((p) => p.id === myBay.productId) : null;
   const checkedIn = checkIns.some((c) => c.employeeId === me.id && c.date === today());
-  const away = onLeave(me, leave);
   const myErrors = queries.filter((q) => q.offenderEmployeeId === me.id).length;
 
   return (
@@ -282,6 +297,56 @@ function DriverDashboard() {
       {away && (
         <Card className="mb-4 p-4 text-[13px] text-text-2">
           You’re marked <b className="text-text">on leave</b> today — no bay has been assigned to you.
+        </Card>
+      )}
+
+      {allDone && (
+        <Card className="mb-4 p-4 flex items-center gap-3">
+          <CheckCircle2 size={18} className="text-delivered shrink-0" />
+          <div className="text-[13px] text-text-2">
+            All of your waves for today are <b className="text-text">completed</b>. Nothing further
+            is assigned.
+          </div>
+        </Card>
+      )}
+
+      {/* More than one wave today — show the running order at a glance. */}
+      {myAssignments.length > 1 && (
+        <Card className="mb-4">
+          <CardHeader title="Your waves today" subtitle={`${myAssignments.length} assignments`} />
+          <div className="divide-y divide-border">
+            {myAssignments.map(({ bay, shift }) => {
+              const isCurrent = bay.id === myBay?.id;
+              return (
+                <div
+                  key={bay.id}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-2.5',
+                    bay.completed && 'opacity-50'
+                  )}
+                >
+                  <CalendarClock size={14} className="text-muted shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-medium text-text truncate">
+                      {shift?.name ?? 'Shift'}
+                      {isCurrent && (
+                        <span className="ml-2 text-2xs font-medium text-accent border border-accent rounded-[3px] px-1.5 py-0.5">
+                          Now
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-2xs text-muted tnum">
+                      starts {shift ? fmtTime(shift.startTime) : '—'} · Bay {bay.number}
+                    </div>
+                  </div>
+                  <StatusPill
+                    status={bay.completed ? 'completed' : bay.status}
+                    label={bay.completed ? 'Completed' : undefined}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </Card>
       )}
 

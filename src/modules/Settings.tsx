@@ -63,7 +63,16 @@ export default function Settings() {
 
   return (
     <div>
-      <PageHeader title={labels.settings} description="Your profile, appearance, and — for Super Admins — who can see what." />
+      <PageHeader
+        title={labels.settings}
+        description={
+          isSuper
+            ? 'Your profile, appearance, portal access and module names.'
+            : user?.role === 'driver'
+              ? 'Your profile and how the app looks on this device.'
+              : 'Your profile, appearance and hub snapshot.'
+        }
+      />
 
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>

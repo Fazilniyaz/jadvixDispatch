@@ -19,7 +19,12 @@ import type {
 } from '@/lib/types';
 
 /* ── date helpers (keep the demo always "today") ─────────────────────────── */
-export const isoDate = (d: Date) => d.toISOString().slice(0, 10);
+/**
+ * Local yyyy-mm-dd. Deliberately NOT toISOString() — that converts to UTC and
+ * can report the wrong day for anyone east/west of Greenwich.
+ */
+export const isoDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 export const today = () => isoDate(new Date());
 export const daysAgo = (n: number) => {
   const d = new Date();

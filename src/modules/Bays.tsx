@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  CalendarDays,
+  ArrowRight,
   CheckCircle2,
   Copy,
   Download,
@@ -18,7 +18,7 @@ import { Modal } from '@/components/Modal';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store/useStore';
 import { onLeave, useScopedBays, useScopedEmployees, useScopedLeave, useScopedProducts, useScopedRoutes, useScopedShifts, useTimeFormatter } from '@/lib/scope';
-import { daysAgo, today } from '@/data/seed';
+import { daysAgo, isoDate, today } from '@/data/seed';
 import { exportRows } from '@/lib/exporters';
 import type { BayStatus } from '@/lib/types';
 
@@ -58,6 +58,7 @@ export default function Bays() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dupOpen, setDupOpen] = useState(false);
   const [dupFrom, setDupFrom] = useState(daysAgo(1));
+  const [dupTo, setDupTo] = useState(today());
   const [dupError, setDupError] = useState('');
 
   const UNASSIGNED_TAB = '__un';
@@ -92,6 +93,29 @@ export default function Bays() {
   const empById = (id: string | null) => employees.find((e) => e.id === id) ?? null;
   const prodById = (id: string | null) => products.find((p) => p.id === id) ?? null;
   const routeById = (id: string | null) => routes.find((r) => r.id === id) ?? null;
+
+  // Duplicate: shift a yyyy-mm-dd string by N days, staying in local time.
+  const shiftDate = (d: string, delta: number) => {
+    const dt = new Date(d + 'T00:00:00');
+    dt.setDate(dt.getDate() + delta);
+    return isoDate(dt);
+  };
+  const nextDay = (d: string) => shiftDate(d, 1);
+  const prevDay = (d: string) => shiftDate(d, -1);
+
+  const dupSourceCount = allBays.filter(
+    (b) => b.shiftId === activeShift?.id && b.date === dupFrom
+  ).length;
+  const dupTargetCount = allBays.filter(
+    (b) => b.shiftId === activeShift?.id && b.date === dupTo && (b.assignedDriverId || b.productId || b.routeId)
+  ).length;
+
+  const openDuplicate = () => {
+    setDupFrom(date);
+    setDupTo(nextDay(date));
+    setDupError('');
+    setDupOpen(true);
+  };
 
   const onDrop = (targetId: string) => {
     if (!dragId || dragId === targetId || frozen) return setDragId(null);
@@ -147,7 +171,7 @@ export default function Bays() {
               className="h-9 bg-surface border border-border rounded-[3px] px-2 text-[13px] text-text tnum focus:border-accent focus:outline-none"
               aria-label="Bay date"
             />
-            <Button variant="secondary" onClick={() => setDupOpen(true)}>
+            <Button variant="secondary" onClick={openDuplicate}>
               <Copy size={15} />
               Duplicate
             </Button>
@@ -440,7 +464,7 @@ export default function Bays() {
         )}
       </div>
 
-      {/* Duplicate a past day onto another date */}
+      {/* Copy a shift's staged plan from one date to another, in either direction */}
       <Modal
         open={dupOpen}
         onClose={() => setDupOpen(false)}
@@ -450,41 +474,97 @@ export default function Bays() {
             <Button variant="ghost" onClick={() => setDupOpen(false)}>Cancel</Button>
             <Button
               variant="primary"
+              disabled={dupSourceCount === 0 || dupFrom === dupTo}
               onClick={() => {
                 if (!hubId || !activeShift) return;
-                const source = allBays.filter(
-                  (b) => b.shiftId === activeShift.id && b.date === dupFrom
-                );
-                if (source.length === 0) {
+                if (dupSourceCount === 0) {
                   setDupError(`No bays were staged for ${activeShift.name} on ${dupFrom}.`);
                   return;
                 }
-                duplicateBayDay(hubId, activeShift.id, dupFrom, date);
-                // Re-pad back up to maxBays after the copy lands.
-                setTimeout(() => ensureBays(hubId, activeShift.id, date), 0);
+                duplicateBayDay(hubId, activeShift.id, dupFrom, dupTo);
+                // Re-pad the target day back up to maxBays, then show it.
+                setTimeout(() => {
+                  ensureBays(hubId, activeShift.id, dupTo);
+                  setDate(dupTo);
+                }, 0);
                 setDupError('');
                 setDupOpen(false);
               }}
             >
-              Copy onto {date}
+              Copy {dupSourceCount || ''} {dupSourceCount === 1 ? 'bay' : 'bays'} →&nbsp;{dupTo}
             </Button>
           </>
         }
       >
-        <div className="space-y-3">
+        <div className="space-y-4">
           <p className="text-[13px] text-text-2">
-            Copy a previous day’s plan for <b className="text-text">{activeShift?.name}</b> onto{' '}
-            <b className="text-text">{date}</b>. Existing bays for that date are replaced.
+            Copy the staged plan for <b className="text-text">{activeShift?.name}</b> — employees,
+            products, locations and status — from one date to another.
           </p>
-          <label className="flex items-center gap-2">
-            <CalendarDays size={15} className="text-muted" />
-            <input
-              type="date"
-              value={dupFrom}
-              onChange={(e) => setDupFrom(e.target.value)}
-              className="h-9 bg-surface border border-border rounded-[3px] px-2 text-[13px] tnum focus:border-accent focus:outline-none"
-            />
-          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-end gap-3">
+            <label className="block">
+              <span className="text-2xs uppercase tracking-wide text-muted">Copy from</span>
+              <input
+                type="date"
+                value={dupFrom}
+                onChange={(e) => { setDupFrom(e.target.value); setDupError(''); }}
+                className="mt-1 h-9 w-full bg-surface border border-border rounded-[3px] px-2 text-[13px] tnum focus:border-accent focus:outline-none"
+              />
+            </label>
+            <ArrowRight size={16} className="text-muted mb-2.5 hidden sm:block" />
+            <label className="block">
+              <span className="text-2xs uppercase tracking-wide text-muted">Copy to</span>
+              <input
+                type="date"
+                value={dupTo}
+                onChange={(e) => { setDupTo(e.target.value); setDupError(''); }}
+                className="mt-1 h-9 w-full bg-surface border border-border rounded-[3px] px-2 text-[13px] tnum focus:border-accent focus:outline-none"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { setDupFrom(date); setDupTo(nextDay(date)); setDupError(''); }}
+              className="text-2xs border border-border rounded-[3px] px-2 py-1 text-text-2 hover:bg-surface-2"
+            >
+              This day → tomorrow
+            </button>
+            <button
+              type="button"
+              onClick={() => { setDupFrom(prevDay(date)); setDupTo(date); setDupError(''); }}
+              className="text-2xs border border-border rounded-[3px] px-2 py-1 text-text-2 hover:bg-surface-2"
+            >
+              Yesterday → this day
+            </button>
+          </div>
+
+          {/* Live feedback so you always know what will happen */}
+          <div className="border border-border rounded-[3px] bg-surface-2 px-3 py-2 text-[13px]">
+            {dupFrom === dupTo ? (
+              <span className="text-exception">Pick two different dates.</span>
+            ) : dupSourceCount === 0 ? (
+              <span className="text-exception">
+                Nothing staged for {activeShift?.name} on {dupFrom} — nothing to copy.
+              </span>
+            ) : (
+              <span className="text-text-2">
+                <b className="text-text">{dupSourceCount}</b> staged{' '}
+                {dupSourceCount === 1 ? 'bay' : 'bays'} will be copied onto{' '}
+                <b className="text-text">{dupTo}</b>
+                {dupTargetCount > 0 && (
+                  <>
+                    , replacing <b className="text-text">{dupTargetCount}</b> existing{' '}
+                    {dupTargetCount === 1 ? 'bay' : 'bays'}
+                  </>
+                )}
+                .
+              </span>
+            )}
+          </div>
+
           {dupError && <p className="text-2xs text-exception">{dupError}</p>}
         </div>
       </Modal>

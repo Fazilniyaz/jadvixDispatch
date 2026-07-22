@@ -76,6 +76,8 @@ export function useScopedReminders() {
         if (r.hubId !== hubId || !user) return r.hubId === hubId;
         // Personal reminders go to exactly one person.
         if (r.forEmployeeId) return r.forEmployeeId === user.employeeId;
+        // Super Admin oversees every hub, so they see all of its notices.
+        if (user.role === 'super-admin') return true;
         return r.forRoles.includes(user.role);
       }),
     [reminders, hubId, user]
