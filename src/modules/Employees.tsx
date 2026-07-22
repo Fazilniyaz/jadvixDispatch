@@ -6,10 +6,10 @@ import { DataTable, type Column } from '@/components/DataTable';
 import { StatusPill } from '@/components/StatusPill';
 import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
-import { Field, Input, Select } from '@/components/Field';
+import { Field, Input, PasswordInput, Select } from '@/components/Field';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store/useStore';
-import { money, onLeave, useScopedEmployees, useScopedLeave } from '@/lib/scope';
+import { money, onLeave, useEmailTaken, useScopedEmployees, useScopedLeave } from '@/lib/scope';
 import { today } from '@/data/seed';
 import { HUB_AUTHORITY_ROLES, ROLE_LABELS, type Employee, type EmployeeStatus, type Role } from '@/lib/types';
 
@@ -40,12 +40,14 @@ export default function Employees() {
   const deleteEmployee = useStore((s) => s.deleteEmployee);
   const employees = useScopedEmployees();
   const leave = useScopedLeave();
+  const emailTaken = useEmailTaken();
 
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<Form>(empty());
   const [editing, setEditing] = useState<Employee | null>(null);
   const [confirm, setConfirm] = useState<Employee | null>(null);
+  const [dupMsg, setDupMsg] = useState('');
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -57,6 +59,11 @@ export default function Employees() {
 
   const save = () => {
     if (!form.name.trim() || !hubId) return;
+    if (form.role === 'driver' && form.email.trim() && emailTaken(form.email, editing?.id)) {
+      setDupMsg('That login email is already in use.');
+      return;
+    }
+    setDupMsg('');
     const payload = {
       hubId,
       name: form.name.trim(),
@@ -135,9 +142,10 @@ export default function Employees() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Login email"><Input type="email" className="font-mono" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-            <Field label="Password"><Input className="font-mono" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
+            <Field label="Password"><PasswordInput className="font-mono" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
           </div>
           <p className="text-2xs text-muted mt-2">Set status to <b className="text-text-2">Inactive</b> to block this login.</p>
+          {dupMsg && <p className="text-2xs text-exception mt-1">{dupMsg}</p>}
         </div>
       )}
 

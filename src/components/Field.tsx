@@ -1,10 +1,12 @@
 import {
   forwardRef,
+  useState,
   type InputHTMLAttributes,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
   type ReactNode,
 } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const control =
@@ -52,6 +54,33 @@ export const Textarea = forwardRef<
   />
 ));
 Textarea.displayName = 'Textarea';
+
+/** Password field with a show/hide eye toggle. */
+export const PasswordInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  ({ className, ...props }, ref) => {
+    const [shown, setShown] = useState(false);
+    return (
+      <div className="relative">
+        <input
+          ref={ref}
+          type={shown ? 'text' : 'password'}
+          className={cn(control, 'pr-9', className)}
+          {...props}
+        />
+        <button
+          type="button"
+          onClick={() => setShown((v) => !v)}
+          aria-label={shown ? 'Hide password' : 'Show password'}
+          title={shown ? 'Hide password' : 'Show password'}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 grid h-7 w-7 place-items-center rounded-[3px] text-muted hover:text-text hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          {shown ? <EyeOff size={15} /> : <Eye size={15} />}
+        </button>
+      </div>
+    );
+  }
+);
+PasswordInput.displayName = 'PasswordInput';
 
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className, children, ...props }, ref) => (

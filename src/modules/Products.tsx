@@ -83,11 +83,6 @@ export default function Products() {
           {productTypes.map((t) => <option key={t} value={t}>{t}</option>)}
         </Select>
       </Field>
-      <Field label="Status" className="sm:col-span-2">
-        <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as ProductStatus })}>
-          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </Select>
-      </Field>
     </div>
   );
 

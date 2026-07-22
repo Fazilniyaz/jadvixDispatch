@@ -6,7 +6,7 @@ import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { Field, Input } from '@/components/Field';
 import { useStore } from '@/store/useStore';
-import { useScopedBays, useScopedShifts } from '@/lib/scope';
+import { useScopedBays, useScopedShifts, useTimeFormatter } from '@/lib/scope';
 import { today } from '@/data/seed';
 import type { Shift } from '@/lib/types';
 
@@ -19,6 +19,7 @@ export default function Shifts() {
   const updateShift = useStore((s) => s.updateShift);
   const deleteShift = useStore((s) => s.deleteShift);
   const shifts = useScopedShifts();
+  const fmtTime = useTimeFormatter();
   const bays = useScopedBays(today());
 
   const [open, setOpen] = useState(false);
@@ -67,7 +68,7 @@ export default function Shifts() {
               <Card key={s.id}>
                 <CardHeader
                   title={s.name}
-                  subtitle={<span className="inline-flex items-center gap-1.5"><Clock size={12} className="text-muted" /><span className="tnum">starts {s.startTime}</span></span>}
+                  subtitle={<span className="inline-flex items-center gap-1.5"><Clock size={12} className="text-muted" /><span className="tnum">starts {fmtTime(s.startTime)}</span></span>}
                   action={
                     <div className="flex items-center gap-1">
                       <button onClick={() => { setEditing(s); setForm({ name: s.name, startTime: s.startTime }); setOpen(true); }} aria-label="Edit shift" className="text-muted hover:text-text p-1"><Pencil size={14} /></button>
@@ -77,7 +78,7 @@ export default function Shifts() {
                 />
                 <div className="p-4 flex items-end justify-between">
                   <div>
-                    <div className="font-display text-2xl font-semibold text-text tnum leading-none">{s.startTime}</div>
+                    <div className="font-display text-2xl font-semibold text-text tnum leading-none">{fmtTime(s.startTime)}</div>
                     <div className="text-2xs text-muted mt-1">start time</div>
                   </div>
                   <div className="text-right">

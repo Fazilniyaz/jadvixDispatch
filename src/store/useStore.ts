@@ -53,6 +53,7 @@ import {
 } from '@/data/seed';
 
 export type ThemePref = 'light' | 'dark' | 'system';
+export type TimeFormat = '12h' | '24h';
 
 const nid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 9)}`;
 const nowIso = () => new Date().toISOString();
@@ -62,6 +63,7 @@ interface State {
   // session / ui
   user: AuthUser | null;
   theme: ThemePref;
+  timeFormat: TimeFormat; // applies to every time shown in the app
   sidebarCollapsed: boolean;
   activeHubId: string | null; // the "default hub" the dashboard is scoped to
 
@@ -100,6 +102,7 @@ interface State {
   logout: () => void;
   switchHub: (hubId: string) => void;
   setTheme: (t: ThemePref) => void;
+  setTimeFormat: (f: TimeFormat) => void;
   toggleSidebar: () => void;
 
   /* ── permissions ── */
@@ -216,6 +219,7 @@ export const useStore = create<State>()(
     (set, get) => ({
       user: null,
       theme: 'system',
+      timeFormat: '24h',
       sidebarCollapsed: false,
       ...seedState(),
 
@@ -264,6 +268,7 @@ export const useStore = create<State>()(
       logout: () => set({ user: null }),
       switchHub: (hubId) => set({ activeHubId: hubId }),
       setTheme: (theme) => set({ theme }),
+      setTimeFormat: (timeFormat) => set({ timeFormat }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
       /* ── permissions ──────────────────────────────────────────────────── */
@@ -436,10 +441,31 @@ export const useStore = create<State>()(
           const mine = s.bays
             .filter((b) => b.hubId === hubId && b.shiftId === shiftId && b.date === date)
             .sort((a, b) => a.number - b.number);
-          if (mine.length >= s.maxBays) return {};
           const others = s.bays.filter(
             (b) => !(b.hubId === hubId && b.shiftId === shiftId && b.date === date)
           );
+
+          // Shrinking: drop surplus rows from the end, but never discard a bay
+          // that's been staged or already completed.
+          if (mine.length > s.maxBays) {
+            const keep: typeof mine = [];
+            const droppable = (b: (typeof mine)[number]) =>
+              !b.completed && !b.assignedDriverId && !b.productId && !b.routeId;
+            for (let i = mine.length - 1; i >= 0; i--) {
+              const surplus = mine.length - keep.length - (mine.length - 1 - i) > s.maxBays;
+              if (surplus && droppable(mine[i])) continue;
+              keep.unshift(mine[i]);
+            }
+            const trimmed = keep.map((b, i) => ({ ...b, number: i + 1 }));
+            return { bays: [...others, ...trimmed] };
+          }
+
+          if (mine.length === s.maxBays) {
+            const already = mine.every((b, i) => b.number === i + 1);
+            if (already) return {};
+            return { bays: [...others, ...mine.map((b, i) => ({ ...b, number: i + 1 }))] };
+          }
+
           const renum = mine.map((b, i) => ({ ...b, number: i + 1 }));
           const created: Bay[] = Array.from({ length: s.maxBays - renum.length }, (_, i) => ({
             id: nid('bay'),
@@ -520,10 +546,19 @@ export const useStore = create<State>()(
           const kept = s.bays.filter(
             (b) => !(b.hubId === hubId && b.shiftId === shiftId && b.date === toDate)
           );
-          const copies: Bay[] = source.map((b) => ({
-            ...b,
+          // Carry the whole staged plan across — driver, vehicle, product,
+          // location and status — not just the row count.
+          const copies: Bay[] = source.map((b, i) => ({
             id: nid('bay'),
+            hubId: b.hubId,
+            shiftId: b.shiftId,
             date: toDate,
+            number: i + 1,
+            assignedDriverId: b.assignedDriverId,
+            vehicleNo: b.vehicleNo,
+            productId: b.productId,
+            routeId: b.routeId,
+            status: b.status,
             completed: false,
             completedAt: undefined,
           }));
@@ -599,6 +634,24 @@ export const useStore = create<State>()(
               req && status === 'approved'
                 ? s.employees.map((e) => (e.id === req.employeeId ? { ...e, status: 'leave' } : e))
                 : s.employees,
+            // Tell the driver what was decided.
+            reminders: req
+              ? [
+                  {
+                    id: nid('rm'),
+                    hubId: req.hubId,
+                    type: 'leave-request' as const,
+                    title: `Leave ${status}`,
+                    body: `Your leave (${req.from} → ${req.to}) was ${status}${by ? ` by ${by}` : ''}.`,
+                    forRoles: ['driver'] as Role[],
+                    forEmployeeId: req.employeeId,
+                    read: false,
+                    createdAt: nowIso(),
+                    link: '/app/leave',
+                  },
+                  ...s.reminders,
+                ]
+              : s.reminders,
           };
         }),
 
@@ -681,7 +734,28 @@ export const useStore = create<State>()(
 
       /* ── money ────────────────────────────────────────────────────────── */
       addPenalty: (p) =>
-        set((s) => ({ penalties: [{ ...p, id: nid('pn'), status: 'pending' }, ...s.penalties] })),
+        set((s) => {
+          const emp = s.employees.find((e) => e.id === p.employeeId);
+          return {
+            penalties: [{ ...p, id: nid('pn'), status: 'pending' }, ...s.penalties],
+            reminders: [
+              {
+                id: nid('rm'),
+                hubId: p.hubId,
+                type: 'billing' as const,
+                title: 'A penalty was raised against you',
+                body: `${p.reason} — ${p.amount}. Raised ${p.date}.`,
+                forRoles: ['driver'] as Role[],
+                forEmployeeId: p.employeeId,
+                read: false,
+                createdAt: nowIso(),
+                link: '/app/billing',
+              },
+              ...s.reminders,
+            ],
+            employees: emp ? s.employees : s.employees,
+          };
+        }),
       updatePenalty: (id, patch) =>
         set((s) => ({ penalties: s.penalties.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
       generatePayslips: (hubId, period, cadence) =>
@@ -709,7 +783,30 @@ export const useStore = create<State>()(
           return { payslips: [...existing, ...slips] };
         }),
       updatePayslip: (id, patch) =>
-        set((s) => ({ payslips: s.payslips.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+        set((s) => {
+          const slip = s.payslips.find((p) => p.id === id);
+          const notify = slip && (patch.status === 'issued' || patch.status === 'paid');
+          return {
+            payslips: s.payslips.map((p) => (p.id === id ? { ...p, ...patch } : p)),
+            reminders: notify
+              ? [
+                  {
+                    id: nid('rm'),
+                    hubId: slip!.hubId,
+                    type: 'billing' as const,
+                    title: patch.status === 'paid' ? 'Your salary has been paid' : 'Your payslip is ready',
+                    body: `${slip!.period} · net ${slip!.net}.`,
+                    forRoles: ['driver'] as Role[],
+                    forEmployeeId: slip!.employeeId,
+                    read: false,
+                    createdAt: nowIso(),
+                    link: '/app/salary',
+                  },
+                  ...s.reminders,
+                ]
+              : s.reminders,
+          };
+        }),
       /** Master billing: setup + per hub + per employee, with leaver proration. */
       generateInvoice: (companyId, period) =>
         set((s) => {
@@ -763,6 +860,26 @@ export const useStore = create<State>()(
     { name: 'jadvix-hubos', version: 1 }
   )
 );
+
+/**
+ * Live cross-tab sync. Without this, a change made by (say) a Hub Manager in one
+ * tab is invisible to a Super Admin in another until they log out and back in.
+ * Rehydrating on the storage event makes every open portal update instantly.
+ */
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'jadvix-hubos') {
+      const session = useStore.getState().user;
+      void useStore.persist.rehydrate();
+      // Keep *this* tab signed in as whoever it was — only the data should sync.
+      queueMicrotask(() => {
+        if (session && useStore.getState().user?.credentialId !== session.credentialId) {
+          useStore.setState({ user: session });
+        }
+      });
+    }
+  });
+}
 
 /* ── Derived selectors — the wiring every portal shares ──────────────────── */
 

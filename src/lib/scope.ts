@@ -72,13 +72,12 @@ export function useScopedReminders() {
   const user = useStore((s) => s.user);
   return useMemo(
     () =>
-      reminders.filter(
-        (r) =>
-          r.hubId === hubId &&
-          (!user ||
-            r.forRoles.includes(user.role) ||
-            (!!user.employeeId && r.forEmployeeId === user.employeeId))
-      ),
+      reminders.filter((r) => {
+        if (r.hubId !== hubId || !user) return r.hubId === hubId;
+        // Personal reminders go to exactly one person.
+        if (r.forEmployeeId) return r.forEmployeeId === user.employeeId;
+        return r.forRoles.includes(user.role);
+      }),
     [reminders, hubId, user]
   );
 }
@@ -116,3 +115,59 @@ export function onLeave(e: Employee, leave: LeaveRequest[], date = today()) {
 }
 
 export const money = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+/* ── Uniqueness guards — used by every create/edit form ─────────────────── */
+
+const norm = (v: string) => v.trim().toLowerCase();
+
+/** True when another credential already uses this email. */
+export function useEmailTaken() {
+  const credentials = useStore((s) => s.credentials);
+  const employees = useStore((s) => s.employees);
+  return (email: string, exceptCredentialId?: string) => {
+    const key = norm(email);
+    if (!key) return false;
+    return (
+      credentials.some((c) => c.id !== exceptCredentialId && norm(c.email) === key) ||
+      employees.some((e) => e.email && norm(e.email) === key && e.id !== exceptCredentialId)
+    );
+  };
+}
+
+/** True when another hub already uses this code (codes are global identifiers). */
+export function useHubCodeTaken() {
+  const hubs = useStore((s) => s.hubs);
+  return (code: string, exceptHubId?: string) => {
+    const key = norm(code);
+    if (!key) return false;
+    return hubs.some((h) => h.id !== exceptHubId && norm(h.code) === key);
+  };
+}
+
+/** True when another product at this hub already uses this code. */
+export function useProductCodeTaken() {
+  const products = useStore((s) => s.products);
+  return (code: string, exceptId?: string) => {
+    const key = norm(code);
+    if (!key) return false;
+    return products.some((p) => p.id !== exceptId && norm(p.code) === key);
+  };
+}
+
+/** Render "HH:MM" in the user's chosen 12h/24h format. Used app-wide. */
+export function formatTime(hhmm: string, fmt: '12h' | '24h'): string {
+  if (!hhmm || !hhmm.includes(':')) return hhmm || '—';
+  const [hStr, mStr] = hhmm.split(':');
+  const h = Number(hStr);
+  if (Number.isNaN(h)) return hhmm;
+  if (fmt === '24h') return `${String(h).padStart(2, '0')}:${mStr}`;
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${mStr} ${suffix}`;
+}
+
+/** Hook form: reads the setting from the store. */
+export function useTimeFormatter() {
+  const fmt = useStore((s) => s.timeFormat);
+  return (hhmm: string) => formatTime(hhmm, fmt);
+}

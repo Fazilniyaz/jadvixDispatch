@@ -4,9 +4,10 @@ import { PageHeader } from '@/components/PageHeader';
 import { Card, CardHeader } from '@/components/Card';
 import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
-import { Field, Input, Select } from '@/components/Field';
+import { Field, Input, PasswordInput, Select } from '@/components/Field';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store/useStore';
+import { useEmailTaken, useHubCodeTaken } from '@/lib/scope';
 import { buildDefaultPermissions, grantableModules } from '@/lib/modules';
 import { HUB_AUTHORITY_ROLES, ROLE_LABELS, type Hub, type ModuleKey, type Role } from '@/lib/types';
 
@@ -43,6 +44,8 @@ export default function Hubs() {
   const hubPermissions = useStore((s) => s.hubPermissions);
 
   const mine = hubs.filter((h) => h.companyId === user?.companyId);
+  const emailTaken = useEmailTaken();
+  const codeTaken = useHubCodeTaken();
 
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
@@ -52,6 +55,7 @@ export default function Hubs() {
   const [confirm, setConfirm] = useState<Hub | null>(null);
   const [credFor, setCredFor] = useState<Hub | null>(null);
   const [credForm, setCredForm] = useState({ role: 'hub-manager' as Role, email: '', password: '' });
+  const [dupMsg, setDupMsg] = useState('');
 
   const startCreate = () => {
     setEditing(null);
@@ -71,6 +75,10 @@ export default function Hubs() {
   /** Creates the hub, its authority logins, and each role's module access in one go. */
   const finish = () => {
     if (!form.name.trim() || !user?.companyId) return;
+    if (codeTaken(form.code, editing?.id)) return setDupMsg(`Hub code "${form.code.toUpperCase()}" is already in use.`);
+    const clashEmail = HUB_AUTHORITY_ROLES.map((r) => auth[r]).find((a) => a?.enabled && emailTaken(a.email));
+    if (clashEmail) return setDupMsg(`The email ${clashEmail.email} already exists. Use a unique one.`);
+    setDupMsg('');
     const payload = {
       companyId: user.companyId,
       name: form.name.trim(),
@@ -235,6 +243,14 @@ export default function Hubs() {
           )
         }
       >
+        {dupMsg && (
+          <p
+            className="mb-3 text-2xs text-exception border border-exception rounded-[3px] px-2.5 py-1.5"
+            style={{ backgroundColor: 'color-mix(in srgb, var(--exception) 10%, transparent)' }}
+          >
+            {dupMsg}
+          </p>
+        )}
         {step === 1 || editing ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Hub name" className="sm:col-span-2"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Chennai Central" autoFocus /></Field>
@@ -336,7 +352,7 @@ export default function Hubs() {
             </Select>
           </Field>
           <Field label="Email"><Input type="email" className="font-mono" value={credForm.email} onChange={(e) => setCredForm({ ...credForm, email: e.target.value })} /></Field>
-          <Field label="Password"><Input className="font-mono" value={credForm.password} onChange={(e) => setCredForm({ ...credForm, password: e.target.value })} /></Field>
+          <Field label="Password"><PasswordInput className="font-mono" value={credForm.password} onChange={(e) => setCredForm({ ...credForm, password: e.target.value })} /></Field>
           <p className="text-2xs text-muted">
             They sign in with hub code <span className="font-mono text-text-2">{credFor?.code}</span>. Fine-tune their
             modules afterwards in Settings → Portal access.

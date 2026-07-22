@@ -30,6 +30,7 @@ import {
   useScopedQueries,
   useScopedRoutes,
   useScopedShifts,
+  useTimeFormatter,
 } from '@/lib/scope';
 import { today } from '@/data/seed';
 
@@ -123,6 +124,7 @@ function HubDashboard() {
   const leave = useScopedLeave();
   const queries = useScopedQueries();
   const checkIns = useScopedCheckIns();
+  const fmtTime = useTimeFormatter();
 
   const drivers = employees.filter((e) => e.role === 'driver');
   const staffed = bays.filter((b) => b.assignedDriverId).length;
@@ -159,7 +161,7 @@ function HubDashboard() {
                   <CalendarClock size={15} className="text-muted shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-[13px] font-medium text-text">{sh.name}</div>
-                    <div className="text-2xs text-muted tnum">starts {sh.startTime}</div>
+                    <div className="text-2xs text-muted tnum">starts {fmtTime(sh.startTime)}</div>
                   </div>
                   <span className="text-2xs text-text-2 tnum">{filled}/{sb.length} bays</span>
                   <StatusPill status={done ? 'completed' : filled ? 'active' : 'idle'} label={done ? 'Completed' : filled ? 'Running' : 'Idle'} />
@@ -238,6 +240,7 @@ function DriverDashboard() {
   const products = useScopedProducts();
   const checkIns = useScopedCheckIns();
   const queries = useScopedQueries();
+  const fmtTime = useTimeFormatter();
   const leave = useScopedLeave();
 
   if (!me) return null;
@@ -286,7 +289,7 @@ function DriverDashboard() {
         <KpiTile
           label="Your shift"
           value={myShift?.name ?? '—'}
-          hint={myShift ? `Starts ${myShift.startTime}` : 'Not assigned'}
+          hint={myShift ? `Starts ${fmtTime(myShift.startTime)}` : 'Not assigned'}
           icon={CalendarClock}
           accent
         />
@@ -311,7 +314,7 @@ function DriverDashboard() {
           <div className="p-4 space-y-3">
             {myBay ? (
               <>
-                <Row icon={CalendarClock} label="Shift" value={myShift ? `${myShift.name} · ${myShift.startTime}` : '—'} />
+                <Row icon={CalendarClock} label="Shift" value={myShift ? `${myShift.name} · ${fmtTime(myShift.startTime)}` : '—'} />
                 <Row icon={Warehouse} label="Bay" value={`Bay ${myBay.number}`} />
                 <Row icon={Truck} label="Vehicle" value={myBay.vehicleNo || me.vehicleNo} mono />
                 <Row icon={Package} label="Product" value={myProduct ? `${myProduct.name} (${myProduct.type})` : 'None'} />

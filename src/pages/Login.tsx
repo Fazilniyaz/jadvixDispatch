@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Field, Input } from '@/components/Field';
+import { Field, Input, PasswordInput } from '@/components/Field';
 import { Button } from '@/components/Button';
 import { useStore } from '@/store/useStore';
 
@@ -64,7 +64,7 @@ export default function Login() {
                 value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }} />
             </Field>
             <Field label="Password" htmlFor="password">
-              <Input id="password" type="password" autoComplete="current-password" placeholder="••••••••"
+              <PasswordInput id="password" autoComplete="current-password" placeholder="••••••••"
                 value={password} onChange={(e) => { setPassword(e.target.value); setError(''); }} />
             </Field>
             <Field label="Hub code" htmlFor="hub" hint="Only for hub staff and drivers">

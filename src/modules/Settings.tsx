@@ -24,6 +24,8 @@ export default function Settings() {
   const user = useStore((s) => s.user);
   const theme = useStore((s) => s.theme);
   const setTheme = useStore((s) => s.setTheme);
+  const timeFormat = useStore((s) => s.timeFormat);
+  const setTimeFormat = useStore((s) => s.setTimeFormat);
   const logout = useStore((s) => s.logout);
   const labels = useStore((s) => s.moduleLabels);
   const setModuleLabel = useStore((s) => s.setModuleLabel);
@@ -85,14 +87,30 @@ export default function Settings() {
               </button>
             ))}
           </div>
-          <div className="px-4 pb-4">
+          <div className="px-4 pb-4 space-y-3">
+            <div>
+              <div className="text-2xs uppercase tracking-wide text-muted mb-1.5">Time format</div>
+              <div className="grid grid-cols-2 gap-2">
+                {(['12h', '24h'] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setTimeFormat(f)}
+                    className={cn('h-9 text-[13px] font-medium rounded-[3px] border',
+                      timeFormat === f ? 'bg-accent border-accent text-white' : 'bg-surface border-border text-text-2 hover:bg-surface-2')}
+                  >
+                    {f === '12h' ? '12-hour (2:30 PM)' : '24-hour (14:30)'}
+                  </button>
+                ))}
+              </div>
+              <p className="text-2xs text-muted mt-1.5">Applies to every time shown across the app.</p>
+            </div>
             <Button variant="danger" className="w-full" onClick={onLogout}><LogOut size={16} />Log out</Button>
           </div>
         </Card>
       </div>
 
-      {/* Snapshot — captures today's bays, employees and vehicles as a PNG */}
-      {user?.role !== 'master' && (
+      {/* Snapshot — hub authorities only (not drivers, not master) */}
+      {user && user.role !== 'master' && user.role !== 'driver' && (
         <Card className="mt-4">
           <CardHeader
             title="Snapshot"

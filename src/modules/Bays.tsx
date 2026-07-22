@@ -17,7 +17,7 @@ import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/store/useStore';
-import { onLeave, useScopedBays, useScopedEmployees, useScopedLeave, useScopedProducts, useScopedRoutes, useScopedShifts } from '@/lib/scope';
+import { onLeave, useScopedBays, useScopedEmployees, useScopedLeave, useScopedProducts, useScopedRoutes, useScopedShifts, useTimeFormatter } from '@/lib/scope';
 import { daysAgo, today } from '@/data/seed';
 import { exportRows } from '@/lib/exporters';
 import type { BayStatus } from '@/lib/types';
@@ -50,6 +50,7 @@ export default function Bays() {
   const routes = useScopedRoutes();
   const leave = useScopedLeave();
   const allBays = useScopedBays();
+  const fmtTime = useTimeFormatter();
 
   const [date, setDate] = useState(today());
   const [shiftId, setShiftId] = useState<string>('');
@@ -57,6 +58,7 @@ export default function Bays() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [dupOpen, setDupOpen] = useState(false);
   const [dupFrom, setDupFrom] = useState(daysAgo(1));
+  const [dupError, setDupError] = useState('');
 
   const UNASSIGNED_TAB = '__un';
   const onUnassignedTab = shiftId === UNASSIGNED_TAB;
@@ -178,7 +180,7 @@ export default function Bays() {
               <div className={cn('text-[13px] font-medium whitespace-nowrap', active ? 'text-text' : 'text-text-2')}>
                 {s.name}
               </div>
-              <div className="text-2xs text-muted tnum">starts {s.startTime} · {filled}/{maxBays}</div>
+              <div className="text-2xs text-muted tnum">starts {fmtTime(s.startTime)} · {filled}/{maxBays}</div>
             </button>
           );
         })}
@@ -395,7 +397,7 @@ export default function Bays() {
                               <div className="px-4 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                 <Detail icon={<Truck size={14} />} title="Shift">
                                   <D k="Name" v={activeShift?.name ?? '—'} />
-                                  <D k="Starts" v={activeShift?.startTime ?? '—'} />
+                                  <D k="Starts" v={activeShift ? fmtTime(activeShift.startTime) : '—'} />
                                 </Detail>
                                 <Detail icon={<Users size={14} />} title="Employee">
                                   {emp ? (
@@ -449,7 +451,18 @@ export default function Bays() {
             <Button
               variant="primary"
               onClick={() => {
-                if (hubId && activeShift) duplicateBayDay(hubId, activeShift.id, dupFrom, date);
+                if (!hubId || !activeShift) return;
+                const source = allBays.filter(
+                  (b) => b.shiftId === activeShift.id && b.date === dupFrom
+                );
+                if (source.length === 0) {
+                  setDupError(`No bays were staged for ${activeShift.name} on ${dupFrom}.`);
+                  return;
+                }
+                duplicateBayDay(hubId, activeShift.id, dupFrom, date);
+                // Re-pad back up to maxBays after the copy lands.
+                setTimeout(() => ensureBays(hubId, activeShift.id, date), 0);
+                setDupError('');
                 setDupOpen(false);
               }}
             >
@@ -472,6 +485,7 @@ export default function Bays() {
               className="h-9 bg-surface border border-border rounded-[3px] px-2 text-[13px] tnum focus:border-accent focus:outline-none"
             />
           </label>
+          {dupError && <p className="text-2xs text-exception">{dupError}</p>}
         </div>
       </Modal>
     </div>
